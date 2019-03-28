@@ -136,4 +136,3 @@ def _get_action_stats(model, ob):
     std = np.std(actions, axis=0)
 
     return mean, std
-

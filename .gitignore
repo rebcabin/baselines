@@ -14,6 +14,25 @@ keys/
 # Virtualenv
 /env
 
+shadow-hand-venv
+
+!shadow-hand-venv/
+shadow-hand-venv/*
+
+!shadow-hand-venv/lib/
+shadow-hand-venv/lib/*
+
+!shadow-hand-venv/lib/python3.6/
+shadow-hand-venv/lib/python3.6/*
+
+!shadow-hand-venv/lib/python3.6/site-packages/
+shadow-hand-venv/lib/python3.6/site-packages/*
+
+!shadow-hand-venv/lib/python3.6/site-packages/gym/
+shadow-hand-venv/lib/python3.6/site-packages/gym/*
+
+!shadow-hand-venv/lib/python3.6/site-packages/gym/envs/
+
 
 *.sublime-project
 *.sublime-workspace
