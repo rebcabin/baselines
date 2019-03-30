@@ -1,0 +1,1435 @@
+#+TITLE: Dolphin Hands
+#+AUTHOR: Brian Beckman
+#+DATE: [2019-03-25 Mon]
+# +EMAIL: bbeckman@amazon.com
+#+OPTIONS: ':t
+#+OPTIONS: *:t
+#+OPTIONS: -:t
+#+OPTIONS: ::t
+#+OPTIONS: <:t
+#+OPTIONS: H:3
+#+OPTIONS: \n:nil
+#+OPTIONS: ^:t
+#+OPTIONS: arch:headline
+#+OPTIONS: author:t
+#+OPTIONS: c:nil
+#+OPTIONS: creator:nil # comment
+#+OPTIONS: d:(not "LOGBOOK")
+#+OPTIONS: date:t
+#+OPTIONS: e:t
+#+OPTIONS: email:nil
+#+OPTIONS: f:t
+#+OPTIONS: inline:t
+#+OPTIONS: num:t
+#+OPTIONS: p:nil
+#+OPTIONS: pri:nil
+#+OPTIONS: stat:t
+#+OPTIONS: tags:t
+#+OPTIONS: tasks:t
+#+OPTIONS: tex:t
+#+OPTIONS: timestamp:t
+#+OPTIONS: toc:2
+#+OPTIONS: todo:t
+#+OPTIONS: |:t
+
+#+LaTeX_HEADER: \usepackage{amsmath}
+#+LaTeX_HEADER: \usepackage{geometry}
+#+LaTeX_HEADER: \usepackage{palatino}
+#+LaTeX_HEADER: \usepackage{siunitx}
+#+LaTeX_HEADER: \usepackage{braket}
+#+LaTeX_HEADER: \usepackage{interval}
+#+LaTeX_HEADER: \usepackage[euler-digits,euler-hat-accent]{eulervm}
+
+#+LaTeX_HEADER: \newcommand\definedas{\stackrel{\text{\tiny def}}{=}}
+
+
+# +CREATOR: Emacs 24.5.1 (Org mode 8.2.10)
+#+SELECT_TAGS: export
+#+STARTUP: indent
+
+#+LaTeX_CLASS_OPTIONS: [10pt,oneside,x11names]
+
+
+\newpage
+
+* COMMENT HOW TO WORK WITH THIS FILE
+
+** Emacs + VIM == Spacemacs
+
+You must use Emacs, org-mode, and org-babel to work with this file. If you
+prefer VIM, I have a solution for you.
+
+** Spacemacs
+
+Spacemacs[fn:spacemacs] is recommended for Emacs even if you're not going to use
+its perfect VIM emulation. If you're a VIM user, you will probably need it
+because the default Emacs keymaps will drive you batty.
+
+You can definitely do everything here using just plain-ol'-Emacs, though you
+will have to load some packages. If you're using plain-ol'-Emacs, figure that
+all out on your own; if you're using Spacemacs, almost all the packages are
+pre-installed. I won't say any more about it, because I don't want this to be a
+paper about Emacs.
+
+** Interactively
+
+Assuming you're visiting this =.org= file in Spacemacs, go to each code block,
+read it (you, as a human, read it, input it /via/ your eyeballs into your
+brain). Then type =C-c C-c= to /evaluate/ the block.
+
+Most of the code blocks contain just definitions and do not produce results;
+such block are marked =:results none=.  Some blocks produce results and Emacs
+puts the results into the file you're looking at right now.
+
+The first time through, evaluate the blocks in order of appearance so that you
+evaluate definition blocks before blocks that use the definitions. This builds
+up session state. After that, you should be able to repeatedly evaluate
+blocks and get the same results (the code is supposed to be /idempotent/ and
+/commutative/ except for def-ref-order dependency).
+
+If you do not get repeatable results, the code is either not idempotent or not
+commutative, or both. That's a bug, and here is how to diagnose it: quit the
+Inferior Lisp Process (switch to its buffer named something-=*repl*=.)
+
+Repeatedly: track down causes of non-repeatable behavior and fix them. Rarely,
+Spacemacs gets confused and you must quit it altogether and restart. Do that if
+your results persistently don't make sense.
+
+** TODO Batch
+1. Tangle the embedded source out to external files (=C-c C-v t=)
+2. Open a terminal window and type =sbcl --script storeys.lisp= or =sbcl
+   --script test.lisp=.
+
+** Typesetting
+
+Export and typeset the PDF file (=M-x org-latex-export-to-pdf=). That
+automatically runs all the code again, stressing idempotency.
+
+* COMMENT DISABLE CODE SECURITY CHECKS
+
+Don't want to keep answering safety prompts every time you evaluate a block?
+Type =C-c C-c= in the following block:
+
+#+BEGIN_SRC emacs-lisp :exports results :results none
+  (defun update-equation-tag ()
+    (interactive)
+    (save-excursion
+      (goto-char (point-min))
+      (let ((count 1))
+        (while (re-search-forward "\\tag{\\([0-9]+\\)}" nil t)
+          (replace-match (format "%d" count) nil nil nil 1)
+          (setq count (1+ count))))))
+  (update-equation-tag)
+  (setq org-confirm-babel-evaluate nil)
+  (org-babel-map-src-blocks nil (org-babel-remove-result))
+  ; (slime)
+#+END_SRC
+
+
+* Control Shadow Hands with Dolphin
+
+
+** Dimensions and Degrees of Freedom
+
+*** One Hand
+
+The following code gets the original, old environment to tell us the dimensions.
+
+#+begin_src python :results export
+  import gym
+  import numpy as np
+  # env = gym.make("TwoHandsManipulateBlocks-v0")
+  env = gym.make("HandManipulateBlock-v0")
+  _= env.reset()
+  action = env.action_space.sample() # your agent here
+  observation, reward, done, info = env.step(action)
+  result = list({"shape(observation)": np.shape(observation['observation']),
+                 "shape(achived goal)": np.shape(observation['achieved_goal']),
+                 "shape(desired goal)": np.shape(observation['desired_goal']),
+                 "shape(action)": np.shape(action)# ,
+                 # "done": done,
+                 # "info": info
+                 }.items())
+  return result
+#+end_src
+
+The =achieved_goal= and =desired_goal= are 7, concatenating an $(x, y, z)$
+position and a $(w_q,x_q,y_q,z_q)$ quaternion. The quaternion is normalized,
+so it's not \emph{really} seven dimensions, but that might be OK.
+
+Action for one hand is a row vector of length twenty. The code clips actions to
+the interval $\interval{-1}{+1}$. \newline
+
+There are twenty-four joints in each hand:
+1. two wrist joints, =WRJ1= and =WRJ0=
+2. four first-finger joints, =FFJ3= through =FFJ0= (in reverse order)
+3. four middle-finger joints, =MFJ3= through =MFJ0= (reverse order)
+4. four ring-finger joints, =RFJ3= through =RFJ0= (reverse order)
+5. five little-finger joints, =LFJ4= through =LFJ0= (reverse order)
+6. five thumb joints, =THJ4= through =THJ0= (reverse order)
+
+The following symbols in the code build up the state of $61$ elements for the
+left hand:
+- twenty-four =robot_qpos=, in the order above
+- twenty-four =robot_qvel=, generalized velocities
+
+Total is forty-eight.
+
+The ``object'' is the manipulated cubes. There are thirteen dimensions:
+
+1. six elements for =object_qvel=, surmised to be
+   ${\dot{x}, \dot{y}, \dot{z}, \dot{\phi}, \dot{\theta}, \dot{\psi}}$
+2. seven elements for the position and normalized quaternion of the object being
+   manipulated; really only six degrees of freedom because of the normalization
+   of the quaternion.
+
+$\boxed{48 + 13 = 61}$ \newline
+
+*** Two Hands
+
+\noindent The state of the left hand has a total of sixty-one elements. A linear
+regulator for one hand has $61$ columns and $20$ rows, for $1,220$ elements. We
+may guess at a linear regulator by constructing a multivariate normal in $1,220$
+dimensions and then reshaping.
+
+For two hands in one mujoco world, we need a linear control matrix (LCM) of
+$122$ columns and $40$ rows, for $4,880$ elements. However, half of the elements,
+$20$ left-hand actions on $61$ right-hand states and $20$ right-hand actions on
+$61$ left-hand states, must be ignored. The total number of numbers is $2,440$.\newline
+
+$\textrm{LCM}_{\textrm{two hands}}\definedas\left[{}\begin{array}{c|c}
+\textrm{left LCM}_{20\times{}61} & \textrm{ignore}_{20\times{}61} \\
+\hline
+\textrm{ignore}_{20\times{}61} & \textrm{right LCM}_{20\times{}61}
+\end{array}\right]{}$
+
+\bigskip
+
+$\boxed{\textrm{dimensions of linear regulator for two hands} = 2,440}$
+
+*** Sequenced Linear Controllers
+
+We will need one new LCM every few steps, say every ten. In $1,000$ steps, we
+will need 100 LCMs, or $244,000$ numbers. This is an overestimate because the
+LCMs will probably vary slowly with time.  It will likely take fewer judgments
+to learn $\mathrm{LCM}(t+1)$ than it took to learn $\mathrm{LCM}(t)$, perhaps
+many fewer.
+
+With 4-SIP, Dolphin learns $16$ numbers in $100$ judgments (trials) or so. We
+estimate that training $100$ LCMs will take at most $1,795,200$ judgments. TRON
+currently delivers $24,000$ judgments per hour, so $100$ LCMs will take $74$
+hours or at most three days.
+
+** Learn a Neural Network
+
+Alternatively, we can have Dolphin learn the Dactyl neural network directly.
+
+
+* Get the Hands Going
+** Start Here (Ubuntu)
+
+#+begin_example
+https://github.com/rebcabin/baselines
+#+end_example
+
+The instructions for setting up the Python environment are pretty good. Here is
+what I ended up with:
+
+#+begin_example
+env PYTHONPATH=/usr/lib/tensorflow/lib/python3.6:$PYTHONPATH pytest \
+    ./baselines/common/tests/test_serialization.py -k test_serialization
+#+end_example
+
+That test /FAILS/ [TODO]. The immediate goal, however, is to get the hands doing
+/something rather than nothing/. Obsess on the unit tests later. For now,
+we need to get mujoco, graphics, CUDA, Tensorflow going.
+
+To get the hands going on Linux, you will need the following.
+
+** Graphics Display (Ubuntu)
+
+This took time to figure out: you don't want to discover all this on your own.
+
+#+begin_example
+https://github.com/glfw/glfw/issues/808
+https://github.com/openai/mujoco-py/issues/268
+https://www.reddit.com/r/learnprogramming/comments/51u1bg/
+    how_to_install_glew_on_ubuntu/
+#+end_example
+
+Add the following line to =/etc/apt/sources.list= using =sudo.nano= (that's the
+easiest way to add the line).
+
+#+begin_example
+deb http://ppa.launchpad.net/keithw/glfw3/ubuntu trusty main
+#+end_example
+
+Then do this
+
+#+begin_example
+sudo apt update
+sudo apt install libglfw3-dev
+sudo apt install libglfw3
+#+end_example
+
+Then comment out that line in =sources.list= because that =.deb= repo is not
+digitally signed and your automatic update software will stall on it. You made
+need to uncomment and recomment it later to reinstall =glfw=, however, so don't
+remove the line from the file.
+
+** Mujoco
+
+#+begin_example
+https://www.roboti.us/index.html
+#+end_example
+
+Install mujoco 150 and 200 (I leave that to you --- there is a license involved,
+but everything goes in a directory named =~/.mujoco=.
+
+** Environment Variables
+
+It's difficult to get the versions of mujoco, CUDA, Tensorflow, glfw, glew that
+will work with multiple applications. If you get all tied in knots, go here:
+
+#+begin_example
+https://docs.nvidia.com/deeplearning/sdk/cudnn-install/
+  index.html#ubuntu-network-installation
+#+end_example
+
+Add these lines to your =.bashrc= or =.zshrc=
+
+#+begin_example
+export PATH=/usr/local/cuda-9.0/bin\
+  ${PATH:+:${PATH}}
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64\
+  ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=~/.mujoco/mjpro150/bin\
+  ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=~/.mujoco/mujoco200/bin\
+  ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+export PYTHONPATH=/usr/lib/tensorflow/lib/python3.6\
+  ${PYTHONPATH:+:${PYTHONPATH}}
+export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libGLEW.so
+#+end_example
+
+Add some, if not all, to the section on environment variables in the
+=Run->EditConfiguration= dialog box of PyCharm.
+
+Use PyCharm. It's worth the trouble to set it up because its debugger is ---
+worth the trouble.
+
+** Python
+
+Make sure your Python is working (it must be Python 3.6, at least if you're
+following along with me):
+
+#+begin_src bash :results output
+python --version
+#+end_src
+
+Make a nice virtual environment. I called mine ``shadow-hand-venv''. Make sure
+it has at least this stuff:
+
+#+begin_example
+pip freeze
+#+end_example
+
+| absl-py==0.7.0                                                        |
+| astor==0.7.1                                                          |
+| atari-py==0.1.7                                                       |
+| atomicwrites==1.3.0                                                   |
+| attrs==19.1.0                                                         |
+| -e git+https://github.com/rebcabin/baselines.git@1b0924#egg=baselines |
+| box2d-py==2.3.8                                                       |
+| certifi==2019.3.9                                                     |
+| cffi==1.12.2                                                          |
+| chardet==3.0.4                                                        |
+| Click==7.0                                                            |
+| cloudpickle==0.8.0                                                    |
+| Cython==0.29.6                                                        |
+| dill==0.2.9                                                           |
+| filelock==3.0.10                                                      |
+| future==0.17.1                                                        |
+| gast==0.2.2                                                           |
+| glfw==1.7.1                                                           |
+| grpcio==1.19.0                                                        |
+| -e git+https://github.com/rebcabin/baselines.git@1b0924#egg=gym       |
+| h5py==2.9.0                                                           |
+| idna==2.8                                                             |
+| imageio==2.5.0                                                        |
+| joblib==0.13.2                                                        |
+| Keras-Applications==1.0.7                                             |
+| Keras-Preprocessing==1.0.9                                            |
+| lockfile==0.12.2                                                      |
+| Markdown==3.0.1                                                       |
+| mock==2.0.0                                                           |
+| more-itertools==6.0.0                                                 |
+| mpi4py==3.0.1                                                         |
+| mujoco-py==2.0.2.0                                                    |
+| numpy==1.16.2                                                         |
+| opencv-python==4.0.0.21                                               |
+| pbr==5.1.3                                                            |
+| Pillow==5.4.1                                                         |
+| pkg-resources==0.0.0                                                  |
+| pluggy==0.9.0                                                         |
+| progressbar2==3.39.3                                                  |
+| protobuf==3.7.0                                                       |
+| py==1.8.0                                                             |
+| pybullet==2.4.8                                                       |
+| pycparser==2.19                                                       |
+| pyglet==1.3.2                                                         |
+| PyOpenGL==3.1.0                                                       |
+| pytest==4.3.1                                                         |
+| pytest-forked==1.0.2                                                  |
+| python-utils==2.3.0                                                   |
+| requests==2.21.0                                                      |
+| scipy==1.2.1                                                          |
+| six==1.12.0                                                           |
+| tensorboard==1.9.0                                                    |
+| tensorflow==1.9.0                                                     |
+| tensorflow-estimator==1.13.0                                          |
+| termcolor==1.1.0                                                      |
+| tqdm==4.31.1                                                          |
+| urllib3==1.24.1                                                       |
+| Werkzeug==0.14.1                                                      |
+
+Activate your environment:
+
+#+begin_example
+source ./shadow-hand-venv/bin/activate
+#+end_example
+
+Make sure again that Python 3.6 is working with a nice f-string example
+(f-strings don't work in Python 3.5)
+
+#+BEGIN_SRC python
+import time
+return f"Hello, today's date is {time.ctime()}"
+#+END_SRC
+
+Run Emacs in the background from a terminal where that environment is active. If
+you start Emacs without the environment, you won't be able to run the Python
+code below. Here is how I do it.
+
+#+begin_example
+$ nohup ~/usr/bin/emacs-26.1 &> /dev/null &
+#+end_example
+
+** See Hands Run; Run, Hands, Run!
+
+If you use a =:session= header in the following, mujoco will hang.
+
+Give it a go, and best of luck:
+
+#+begin_src python
+  import gym
+  env = gym.make("TwoHandsManipulateBlocks-v0")
+  # env = gym.make("CartPole-v1")
+  # env = gym.make("Zaxxon-v0")
+
+  observation = env.reset() # BOGUS! env.reset returns zoquetes!
+  for _ in range(25):
+      env.render()
+      action = env.action_space.sample() # your agent here (this takes random actions)
+      observation, reward, done, info = env.step(action)
+      if done:
+          observation = env.reset() # BOGUS! env.reset returns zoquetes!
+  env.close()
+#+end_src
+
+** Action and State Shapes
+
+#+begin_src python
+  import gym
+  import numpy as np
+  env = gym.make("TwoHandsManipulateBlocks-v0")
+  _= env.reset()
+  return list({"action space": env.action_space,
+               "observation space": env.observation_space}.items())
+#+end_src
+
+** User Interface
+
+*** Two Mujoco Windows
+
+[2019-03-28 Thu 09:10] getting Mujoco to show two windows.
+
+Suspending this out of bias-for-action. Turns out to require many changes inside
+=mujoco_py=. Mujoco assumes it controls one screen, one process. We can
+implement two mujocos, but it's more work. For now, I will put two hands,
+two cubes in one mujoco process.
+
+Here is a comment recording my problems with it.
+
+#+begin_src python :eval never
+  def render(self, mode='human', width=DEFAULT_SIZE, height=DEFAULT_SIZE):
+      self._render_callback()
+      if mode == 'rgb_array':
+          self._get_viewer(mode).render(width, height)
+          # window size used for old mujoco-py:
+          data = self._get_viewer(mode).read_pixels(width, height, depth=False)
+          # original image is upside-down, so flip it
+          return data[::-1, :, :]
+      # [[[ bbeckman --- human mode is ignoring width and height. The ignoring
+      # happens way down deep in the mujoco layer. mujoco_py.MjViewer ignores
+      # the width and height from here and opens a window full-screen. ]]]
+      elif mode == 'human':
+          self._get_viewer(mode).render(width, height)
+#+end_src
+
+*** Unit Tests; Commit =2df76ec=
+
+This is a record of how to run unit tests. PLEASE do this every time you
+check code in.
+
+
+#+begin_example
+$ pushd ~/Documents/baselines
+$ . ./shadow-hand-venv/bin/activate
+(shadow-hand-venv)
+$ pytest shadow-hand-venv/lib/python3.6/site-packages/gym/
+==== 224 passed, 1 skipped, 97 warnings in 21.89 seconds =====
+#+end_example
+
+** Sandbox
+
+#+begin_src python
+return list(map(lambda _: [_], [1, 2, 3]))
+#+end_src
+
+#+begin_src python
+return [1, 2, 3]
+#+end_src
+
+#+begin_src python
+return [[1], [2], [3]]
+#+end_src
+
+*** Transcript of Some Action Plans
+
+- [March 28, 2019, 7:11 AM] Beckman, Brian: important: you are familiar with piecewise linear approximations (PLA) of a function.
+- [March 28, 2019, 7:12 AM] Beckman, Brian: We may need multiple 61x20 matrices, one every 10 or 20 time steps.
+- [March 28, 2019, 7:12 AM] Beckman, Brian: That amounts to PLA to policy function, in 1220 dimensions
+- [March 28, 2019, 7:13 AM] Beckman, Brian: alternative: directly learn the LSTM + etc NN in the paper, not learn reward and then do RL, directly learn the params in the NN
+- [March 28, 2019, 7:14 AM] Beckman, Brian: if we have a bunch of 61x20 = 1220 matrices, say 1000, that's 1,220,000 params in the PLA
+- [March 28, 2019, 7:15 AM] Beckman, Brian: the NN LSTM + whatever probably has 1,000,000 params
+- [March 28, 2019, 7:15 AM] Beckman, Brian: so the amount of information in the two approaches (PLA vs NN) is about the same
+- [March 28, 2019, 7:15 AM] Beckman, Brian: PLUS :::: SIDD has EXPLICITLY DEMANDED that we directly learn the NN with HPL
+- [March 28, 2019, 7:17 AM] Beckman, Brian: so we have two ways of approx'ing the policy function: NN LSTM+whatever about 1,000,000 params, and PLA, i.e., time series of 61x20 matrices, about 1,220,000 params
+- [March 28, 2019, 7:17 AM] Beckman, Brian: we have to try both
+- [March 28, 2019, 7:20 AM] Beckman, Brian: Use A/B instead of RL to learn all the params in the big NN in the paper
+- [March 28, 2019, 7:20 AM] Beckman, Brian: the policy NN
+- [March 28, 2019, 7:21 AM] Beckman, Brian: LSTM + a whole bunch of other stuff
+- [March 28, 2019, 7:21 AM] Beckman, Brian: a big freaking NN, Yushan looked into it
+- [March 28, 2019, 7:21 AM] Beckman, Brian: it has about 1,000,000 params, maybe 300,000 because it's not fully connected
+- [March 28, 2019, 7:22 AM] Beckman, Brian: so we can learn that NN, or we can learn a time-series of matrices
+- [March 28, 2019, 7:22 AM] Pham, Thai: Estimate reward function or not?
+- [March 28, 2019, 7:23 AM] Beckman, Brian: no
+- [March 28, 2019, 7:23 AM] Beckman, Brian: no RL
+- [March 28, 2019, 7:23 AM] Beckman, Brian: directly estimate the params in the NN
+- [March 28, 2019, 7:23 AM] Pham, Thai: Ok
+- [March 28, 2019, 7:23 AM] Beckman, Brian: using A/B even if it means 1,000,000 TRON trips
+- [March 28, 2019, 7:23 AM] Pham, Thai: Using NN to model policy is fine
+- [March 28, 2019, 7:23 AM] Beckman, Brian: yup
+- [March 28, 2019, 7:23 AM] Pham, Thai: That’s what I plan to use
+- [March 28, 2019, 7:24 AM] Beckman, Brian: we will do both (1) use NN to model policy (2) use PLA time-series of 61x20 matrices to model policy
+- [March 28, 2019, 7:24 AM] Beckman, Brian: PLA worked for pendulum so I am not sure it's wrong
+- [March 28, 2019, 7:25 AM] Beckman, Brian: NN is one way to approximate a function, PLA is just another way to approximate a function
+- [March 28, 2019, 7:25 AM] Beckman, Brian: two different equally valid ways to approx functions
+- [March 28, 2019, 7:25 AM] Beckman, Brian: I am going to leave the NN part to you and Yushan
+- [March 28, 2019, 7:26 AM] Beckman, Brian: you guys will teach me later when you have a demo
+- [March 28, 2019, 7:26 AM] Beckman, Brian: I will do the time-series of 61x20 matrices
+- [March 28, 2019, 7:26 AM] Pham, Thai: Ok
+- [March 28, 2019, 7:27 AM] Beckman, Brian: Neda knows I just told her
+- [March 28, 2019, 7:28 AM] Beckman, Brian: there will be lots of talking, later after we have something to show
+- [March 28, 2019, 7:28 AM] Beckman, Brian: if anyone comes to you tell them we'll talk after we have some experiments
+- [March 28, 2019, 7:29 AM] Beckman, Brian: we need to have some stuff to talk about instead of just abstract ideas
+- [March 28, 2019, 7:31 AM] Beckman, Brian: you get some stuff done, you must be my trusted partner
+- [March 28, 2019, 7:31 AM] Pham, Thai: No worries
+- [March 28, 2019, 7:32 AM] Pham, Thai: I need one full day sitting with Dylon
+- [March 28, 2019, 7:32 AM] Beckman, Brian: you can have dylon
+- [March 28, 2019, 7:33 AM] Pham, Thai: Yeah I’ll wait until he’s done with TRON job
+- [March 28, 2019, 7:33 AM] Beckman, Brian: ok good
+- [March 28, 2019, 7:33 AM] Pham, Thai: I’ll take him with me after that
+- [March 28, 2019, 7:33 AM] Pham, Thai: For one day
+- [March 28, 2019, 7:33 AM] Beckman, Brian: the hand envrt is easy to work with i am going to try to make two windows side-by-side
+- [March 28, 2019, 7:33 AM] Pham, Thai: Ok good
+- [March 28, 2019, 7:34 AM] Beckman, Brian: i am going solo
+- [March 28, 2019, 7:34 AM] Beckman, Brian: no dependencies
+- [March 28, 2019, 7:34 AM] Pham, Thai: Ok
+- [March 28, 2019, 7:34 AM] Beckman, Brian: it's ok if we dupe work
+- [March 28, 2019, 7:34 AM] Beckman, Brian: no cross dependencies
+- [March 28, 2019, 7:34 AM] Beckman, Brian: you take Dylon, i will solo
+- [March 28, 2019, 7:34 AM] Pham, Thai: Ok sounds good
+
+
+* COMMENT 835 Environments in Baselines
+
+Here are all the environments in ``baselines.'' (Somehow, `adventure' was
+deleted on an intermediate checkin. I don't know how. I put it back in
+=__init__.py= of =gym.envs= and all is well. I started with 833 environments,
+added two, prefixed with names =TwoHandsManipulateBlocks=, and now have 835.)
+
+#+begin_src python :results value
+import gym
+# return gym.envs.registry.all()
+return len(gym.envs.registry.all())
+#+end_src
+
+#+begin_example
+  1 Acrobot-v1
+  2 Adventure-ram-v0
+  3 Adventure-ram-v4
+  4 Adventure-ramDeterministic-v0
+  5 Adventure-ramDeterministic-v4
+  6 Adventure-ramNoFrameskip-v0
+  7 Adventure-ramNoFrameskip-v4
+  8 Adventure-v0
+  9 Adventure-v4
+ 10 AdventureDeterministic-v0
+ 11 AdventureDeterministic-v4
+ 12 AdventureNoFrameskip-v0
+ 13 AdventureNoFrameskip-v4
+ 14 AirRaid-ram-v0
+ 15 AirRaid-ram-v4
+ 16 AirRaid-ramDeterministic-v0
+ 17 AirRaid-ramDeterministic-v4
+ 18 AirRaid-ramNoFrameskip-v0
+ 19 AirRaid-ramNoFrameskip-v4
+ 20 AirRaid-v0
+ 21 AirRaid-v4
+ 22 AirRaidDeterministic-v0
+ 23 AirRaidDeterministic-v4
+ 24 AirRaidNoFrameskip-v0
+ 25 AirRaidNoFrameskip-v4
+ 26 Alien-ram-v0
+ 27 Alien-ram-v4
+ 28 Alien-ramDeterministic-v0
+ 29 Alien-ramDeterministic-v4
+ 30 Alien-ramNoFrameskip-v0
+ 31 Alien-ramNoFrameskip-v4
+ 32 Alien-v0
+ 33 Alien-v4
+ 34 AlienDeterministic-v0
+ 35 AlienDeterministic-v4
+ 36 AlienNoFrameskip-v0
+ 37 AlienNoFrameskip-v4
+ 38 Amidar-ram-v0
+ 39 Amidar-ram-v4
+ 40 Amidar-ramDeterministic-v0
+ 41 Amidar-ramDeterministic-v4
+ 42 Amidar-ramNoFrameskip-v0
+ 43 Amidar-ramNoFrameskip-v4
+ 44 Amidar-v0
+ 45 Amidar-v4
+ 46 AmidarDeterministic-v0
+ 47 AmidarDeterministic-v4
+ 48 AmidarNoFrameskip-v0
+ 49 AmidarNoFrameskip-v4
+ 50 Ant-v2
+ 51 Ant-v3
+ 52 Assault-ram-v0
+ 53 Assault-ram-v4
+ 54 Assault-ramDeterministic-v0
+ 55 Assault-ramDeterministic-v4
+ 56 Assault-ramNoFrameskip-v0
+ 57 Assault-ramNoFrameskip-v4
+ 58 Assault-v0
+ 59 Assault-v4
+ 60 AssaultDeterministic-v0
+ 61 AssaultDeterministic-v4
+ 62 AssaultNoFrameskip-v0
+ 63 AssaultNoFrameskip-v4
+ 64 Asterix-ram-v0
+ 65 Asterix-ram-v4
+ 66 Asterix-ramDeterministic-v0
+ 67 Asterix-ramDeterministic-v4
+ 68 Asterix-ramNoFrameskip-v0
+ 69 Asterix-ramNoFrameskip-v4
+ 70 Asterix-v0
+ 71 Asterix-v4
+ 72 AsterixDeterministic-v0
+ 73 AsterixDeterministic-v4
+ 74 AsterixNoFrameskip-v0
+ 75 AsterixNoFrameskip-v4
+ 76 Asteroids-ram-v0
+ 77 Asteroids-ram-v4
+ 78 Asteroids-ramDeterministic-v0
+ 79 Asteroids-ramDeterministic-v4
+ 80 Asteroids-ramNoFrameskip-v0
+ 81 Asteroids-ramNoFrameskip-v4
+ 82 Asteroids-v0
+ 83 Asteroids-v4
+ 84 AsteroidsDeterministic-v0
+ 85 AsteroidsDeterministic-v4
+ 86 AsteroidsNoFrameskip-v0
+ 87 AsteroidsNoFrameskip-v4
+ 88 Atlantis-ram-v0
+ 89 Atlantis-ram-v4
+ 90 Atlantis-ramDeterministic-v0
+ 91 Atlantis-ramDeterministic-v4
+ 92 Atlantis-ramNoFrameskip-v0
+ 93 Atlantis-ramNoFrameskip-v4
+ 94 Atlantis-v0
+ 95 Atlantis-v4
+ 96 AtlantisDeterministic-v0
+ 97 AtlantisDeterministic-v4
+ 98 AtlantisNoFrameskip-v0
+ 99 AtlantisNoFrameskip-v4
+100 BankHeist-ram-v0
+101 BankHeist-ram-v4
+102 BankHeist-ramDeterministic-v0
+103 BankHeist-ramDeterministic-v4
+104 BankHeist-ramNoFrameskip-v0
+105 BankHeist-ramNoFrameskip-v4
+106 BankHeist-v0
+107 BankHeist-v4
+108 BankHeistDeterministic-v0
+109 BankHeistDeterministic-v4
+110 BankHeistNoFrameskip-v0
+111 BankHeistNoFrameskip-v4
+112 BattleZone-ram-v0
+113 BattleZone-ram-v4
+114 BattleZone-ramDeterministic-v0
+115 BattleZone-ramDeterministic-v4
+116 BattleZone-ramNoFrameskip-v0
+117 BattleZone-ramNoFrameskip-v4
+118 BattleZone-v0
+119 BattleZone-v4
+120 BattleZoneDeterministic-v0
+121 BattleZoneDeterministic-v4
+122 BattleZoneNoFrameskip-v0
+123 BattleZoneNoFrameskip-v4
+124 BeamRider-ram-v0
+125 BeamRider-ram-v4
+126 BeamRider-ramDeterministic-v0
+127 BeamRider-ramDeterministic-v4
+128 BeamRider-ramNoFrameskip-v0
+129 BeamRider-ramNoFrameskip-v4
+130 BeamRider-v0
+131 BeamRider-v4
+132 BeamRiderDeterministic-v0
+133 BeamRiderDeterministic-v4
+134 BeamRiderNoFrameskip-v0
+135 BeamRiderNoFrameskip-v4
+136 Berzerk-ram-v0
+137 Berzerk-ram-v4
+138 Berzerk-ramDeterministic-v0
+139 Berzerk-ramDeterministic-v4
+140 Berzerk-ramNoFrameskip-v0
+141 Berzerk-ramNoFrameskip-v4
+142 Berzerk-v0
+143 Berzerk-v4
+144 BerzerkDeterministic-v0
+145 BerzerkDeterministic-v4
+146 BerzerkNoFrameskip-v0
+147 BerzerkNoFrameskip-v4
+148 BipedalWalker-v2
+149 BipedalWalkerHardcore-v2
+150 Blackjack-v0
+151 Bowling-ram-v0
+152 Bowling-ram-v4
+153 Bowling-ramDeterministic-v0
+154 Bowling-ramDeterministic-v4
+155 Bowling-ramNoFrameskip-v0
+156 Bowling-ramNoFrameskip-v4
+157 Bowling-v0
+158 Bowling-v4
+159 BowlingDeterministic-v0
+160 BowlingDeterministic-v4
+161 BowlingNoFrameskip-v0
+162 BowlingNoFrameskip-v4
+163 Boxing-ram-v0
+164 Boxing-ram-v4
+165 Boxing-ramDeterministic-v0
+166 Boxing-ramDeterministic-v4
+167 Boxing-ramNoFrameskip-v0
+168 Boxing-ramNoFrameskip-v4
+169 Boxing-v0
+170 Boxing-v4
+171 BoxingDeterministic-v0
+172 BoxingDeterministic-v4
+173 BoxingNoFrameskip-v0
+174 BoxingNoFrameskip-v4
+175 Breakout-ram-v0
+176 Breakout-ram-v4
+177 Breakout-ramDeterministic-v0
+178 Breakout-ramDeterministic-v4
+179 Breakout-ramNoFrameskip-v0
+180 Breakout-ramNoFrameskip-v4
+181 Breakout-v0
+182 Breakout-v4
+183 BreakoutDeterministic-v0
+184 BreakoutDeterministic-v4
+185 BreakoutNoFrameskip-v0
+186 BreakoutNoFrameskip-v4
+187 CarRacing-v0
+188 Carnival-ram-v0
+189 Carnival-ram-v4
+190 Carnival-ramDeterministic-v0
+191 Carnival-ramDeterministic-v4
+192 Carnival-ramNoFrameskip-v0
+193 Carnival-ramNoFrameskip-v4
+194 Carnival-v0
+195 Carnival-v4
+196 CarnivalDeterministic-v0
+197 CarnivalDeterministic-v4
+198 CarnivalNoFrameskip-v0
+199 CarnivalNoFrameskip-v4
+200 CartPole-v0
+201 CartPole-v1
+202 Centipede-ram-v0
+203 Centipede-ram-v4
+204 Centipede-ramDeterministic-v0
+205 Centipede-ramDeterministic-v4
+206 Centipede-ramNoFrameskip-v0
+207 Centipede-ramNoFrameskip-v4
+208 Centipede-v0
+209 Centipede-v4
+210 CentipedeDeterministic-v0
+211 CentipedeDeterministic-v4
+212 CentipedeNoFrameskip-v0
+213 CentipedeNoFrameskip-v4
+214 ChopperCommand-ram-v0
+215 ChopperCommand-ram-v4
+216 ChopperCommand-ramDeterministic-v0
+217 ChopperCommand-ramDeterministic-v4
+218 ChopperCommand-ramNoFrameskip-v0
+219 ChopperCommand-ramNoFrameskip-v4
+220 ChopperCommand-v0
+221 ChopperCommand-v4
+222 ChopperCommandDeterministic-v0
+223 ChopperCommandDeterministic-v4
+224 ChopperCommandNoFrameskip-v0
+225 ChopperCommandNoFrameskip-v4
+226 CliffWalking-v0
+227 Copy-v0
+228 CrazyClimber-ram-v0
+229 CrazyClimber-ram-v4
+230 CrazyClimber-ramDeterministic-v0
+231 CrazyClimber-ramDeterministic-v4
+232 CrazyClimber-ramNoFrameskip-v0
+233 CrazyClimber-ramNoFrameskip-v4
+234 CrazyClimber-v0
+235 CrazyClimber-v4
+236 CrazyClimberDeterministic-v0
+237 CrazyClimberDeterministic-v4
+238 CrazyClimberNoFrameskip-v0
+239 CrazyClimberNoFrameskip-v4
+240 CubeCrash-v0
+241 CubeCrashScreenBecomesBlack-v0
+242 CubeCrashSparse-v0
+243 Defender-ram-v0
+244 Defender-ram-v4
+245 Defender-ramDeterministic-v0
+246 Defender-ramDeterministic-v4
+247 Defender-ramNoFrameskip-v0
+248 Defender-ramNoFrameskip-v4
+249 Defender-v0
+250 Defender-v4
+251 DefenderDeterministic-v0
+252 DefenderDeterministic-v4
+253 DefenderNoFrameskip-v0
+254 DefenderNoFrameskip-v4
+255 DemonAttack-ram-v0
+256 DemonAttack-ram-v4
+257 DemonAttack-ramDeterministic-v0
+258 DemonAttack-ramDeterministic-v4
+259 DemonAttack-ramNoFrameskip-v0
+260 DemonAttack-ramNoFrameskip-v4
+261 DemonAttack-v0
+262 DemonAttack-v4
+263 DemonAttackDeterministic-v0
+264 DemonAttackDeterministic-v4
+265 DemonAttackNoFrameskip-v0
+266 DemonAttackNoFrameskip-v4
+267 DoubleDunk-ram-v0
+268 DoubleDunk-ram-v4
+269 DoubleDunk-ramDeterministic-v0
+270 DoubleDunk-ramDeterministic-v4
+271 DoubleDunk-ramNoFrameskip-v0
+272 DoubleDunk-ramNoFrameskip-v4
+273 DoubleDunk-v0
+274 DoubleDunk-v4
+275 DoubleDunkDeterministic-v0
+276 DoubleDunkDeterministic-v4
+277 DoubleDunkNoFrameskip-v0
+278 DoubleDunkNoFrameskip-v4
+279 DuplicatedInput-v0
+280 ElevatorAction-ram-v0
+281 ElevatorAction-ram-v4
+282 ElevatorAction-ramDeterministic-v0
+283 ElevatorAction-ramDeterministic-v4
+284 ElevatorAction-ramNoFrameskip-v0
+285 ElevatorAction-ramNoFrameskip-v4
+286 ElevatorAction-v0
+287 ElevatorAction-v4
+288 ElevatorActionDeterministic-v0
+289 ElevatorActionDeterministic-v4
+290 ElevatorActionNoFrameskip-v0
+291 ElevatorActionNoFrameskip-v4
+292 Enduro-ram-v0
+293 Enduro-ram-v4
+294 Enduro-ramDeterministic-v0
+295 Enduro-ramDeterministic-v4
+296 Enduro-ramNoFrameskip-v0
+297 Enduro-ramNoFrameskip-v4
+298 Enduro-v0
+299 Enduro-v4
+300 EnduroDeterministic-v0
+301 EnduroDeterministic-v4
+302 EnduroNoFrameskip-v0
+303 EnduroNoFrameskip-v4
+304 FetchPickAndPlace-v1
+305 FetchPickAndPlaceDense-v1
+306 FetchPush-v1
+307 FetchPushDense-v1
+308 FetchReach-v1
+309 FetchReachDense-v1
+310 FetchSlide-v1
+311 FetchSlideDense-v1
+312 FishingDerby-ram-v0
+313 FishingDerby-ram-v4
+314 FishingDerby-ramDeterministic-v0
+315 FishingDerby-ramDeterministic-v4
+316 FishingDerby-ramNoFrameskip-v0
+317 FishingDerby-ramNoFrameskip-v4
+318 FishingDerby-v0
+319 FishingDerby-v4
+320 FishingDerbyDeterministic-v0
+321 FishingDerbyDeterministic-v4
+322 FishingDerbyNoFrameskip-v0
+323 FishingDerbyNoFrameskip-v4
+324 Freeway-ram-v0
+325 Freeway-ram-v4
+326 Freeway-ramDeterministic-v0
+327 Freeway-ramDeterministic-v4
+328 Freeway-ramNoFrameskip-v0
+329 Freeway-ramNoFrameskip-v4
+330 Freeway-v0
+331 Freeway-v4
+332 FreewayDeterministic-v0
+333 FreewayDeterministic-v4
+334 FreewayNoFrameskip-v0
+335 FreewayNoFrameskip-v4
+336 Frostbite-ram-v0
+337 Frostbite-ram-v4
+338 Frostbite-ramDeterministic-v0
+339 Frostbite-ramDeterministic-v4
+340 Frostbite-ramNoFrameskip-v0
+341 Frostbite-ramNoFrameskip-v4
+342 Frostbite-v0
+343 Frostbite-v4
+344 FrostbiteDeterministic-v0
+345 FrostbiteDeterministic-v4
+346 FrostbiteNoFrameskip-v0
+347 FrostbiteNoFrameskip-v4
+348 FrozenLake-v0
+349 FrozenLake8x8-v0
+350 Gopher-ram-v0
+351 Gopher-ram-v4
+352 Gopher-ramDeterministic-v0
+353 Gopher-ramDeterministic-v4
+354 Gopher-ramNoFrameskip-v0
+355 Gopher-ramNoFrameskip-v4
+356 Gopher-v0
+357 Gopher-v4
+358 GopherDeterministic-v0
+359 GopherDeterministic-v4
+360 GopherNoFrameskip-v0
+361 GopherNoFrameskip-v4
+362 Gravitar-ram-v0
+363 Gravitar-ram-v4
+364 Gravitar-ramDeterministic-v0
+365 Gravitar-ramDeterministic-v4
+366 Gravitar-ramNoFrameskip-v0
+367 Gravitar-ramNoFrameskip-v4
+368 Gravitar-v0
+369 Gravitar-v4
+370 GravitarDeterministic-v0
+371 GravitarDeterministic-v4
+372 GravitarNoFrameskip-v0
+373 GravitarNoFrameskip-v4
+374 GuessingGame-v0
+375 HalfCheetah-v2
+376 HalfCheetah-v3
+377 HandManipulateBlock-v0
+378 HandManipulateBlockDense-v0
+379 HandManipulateBlockFull-v0
+380 HandManipulateBlockFullDense-v0
+381 HandManipulateBlockRotateParallel-v0
+382 HandManipulateBlockRotateParallelDense-v0
+383 HandManipulateBlockRotateXYZ-v0
+384 HandManipulateBlockRotateXYZDense-v0
+385 HandManipulateBlockRotateZ-v0
+386 HandManipulateBlockRotateZDense-v0
+387 HandManipulateBlockTouchSensors-v0
+388 HandManipulateBlockTouchSensorsDense-v0
+389 HandManipulateEgg-v0
+390 HandManipulateEggDense-v0
+391 HandManipulateEggFull-v0
+392 HandManipulateEggFullDense-v0
+393 HandManipulateEggRotate-v0
+394 HandManipulateEggRotateDense-v0
+395 HandManipulateEggTouchSensors-v0
+396 HandManipulateEggTouchSensorsDense-v0
+397 HandManipulatePen-v0
+398 HandManipulatePenDense-v0
+399 HandManipulatePenFull-v0
+400 HandManipulatePenFullDense-v0
+401 HandManipulatePenRotate-v0
+402 HandManipulatePenRotateDense-v0
+403 HandManipulatePenTouchSensors-v0
+404 HandManipulatePenTouchSensorsDense-v0
+405 HandReach-v0
+406 HandReachDense-v0
+407 Hero-ram-v0
+408 Hero-ram-v4
+409 Hero-ramDeterministic-v0
+410 Hero-ramDeterministic-v4
+411 Hero-ramNoFrameskip-v0
+412 Hero-ramNoFrameskip-v4
+413 Hero-v0
+414 Hero-v4
+415 HeroDeterministic-v0
+416 HeroDeterministic-v4
+417 HeroNoFrameskip-v0
+418 HeroNoFrameskip-v4
+419 Hopper-v2
+420 Hopper-v3
+421 HotterColder-v0
+422 Humanoid-v2
+423 Humanoid-v3
+424 HumanoidStandup-v2
+425 IceHockey-ram-v0
+426 IceHockey-ram-v4
+427 IceHockey-ramDeterministic-v0
+428 IceHockey-ramDeterministic-v4
+429 IceHockey-ramNoFrameskip-v0
+430 IceHockey-ramNoFrameskip-v4
+431 IceHockey-v0
+432 IceHockey-v4
+433 IceHockeyDeterministic-v0
+434 IceHockeyDeterministic-v4
+435 IceHockeyNoFrameskip-v0
+436 IceHockeyNoFrameskip-v4
+437 InvertedDoublePendulum-v2
+438 InvertedPendulum-v2
+439 Jamesbond-ram-v0
+440 Jamesbond-ram-v4
+441 Jamesbond-ramDeterministic-v0
+442 Jamesbond-ramDeterministic-v4
+443 Jamesbond-ramNoFrameskip-v0
+444 Jamesbond-ramNoFrameskip-v4
+445 Jamesbond-v0
+446 Jamesbond-v4
+447 JamesbondDeterministic-v0
+448 JamesbondDeterministic-v4
+449 JamesbondNoFrameskip-v0
+450 JamesbondNoFrameskip-v4
+451 JourneyEscape-ram-v0
+452 JourneyEscape-ram-v4
+453 JourneyEscape-ramDeterministic-v0
+454 JourneyEscape-ramDeterministic-v4
+455 JourneyEscape-ramNoFrameskip-v0
+456 JourneyEscape-ramNoFrameskip-v4
+457 JourneyEscape-v0
+458 JourneyEscape-v4
+459 JourneyEscapeDeterministic-v0
+460 JourneyEscapeDeterministic-v4
+461 JourneyEscapeNoFrameskip-v0
+462 JourneyEscapeNoFrameskip-v4
+463 Kangaroo-ram-v0
+464 Kangaroo-ram-v4
+465 Kangaroo-ramDeterministic-v0
+466 Kangaroo-ramDeterministic-v4
+467 Kangaroo-ramNoFrameskip-v0
+468 Kangaroo-ramNoFrameskip-v4
+469 Kangaroo-v0
+470 Kangaroo-v4
+471 KangarooDeterministic-v0
+472 KangarooDeterministic-v4
+473 KangarooNoFrameskip-v0
+474 KangarooNoFrameskip-v4
+475 KellyCoinflip-v0
+476 KellyCoinflipGeneralized-v0
+477 Krull-ram-v0
+478 Krull-ram-v4
+479 Krull-ramDeterministic-v0
+480 Krull-ramDeterministic-v4
+481 Krull-ramNoFrameskip-v0
+482 Krull-ramNoFrameskip-v4
+483 Krull-v0
+484 Krull-v4
+485 KrullDeterministic-v0
+486 KrullDeterministic-v4
+487 KrullNoFrameskip-v0
+488 KrullNoFrameskip-v4
+489 KungFuMaster-ram-v0
+490 KungFuMaster-ram-v4
+491 KungFuMaster-ramDeterministic-v0
+492 KungFuMaster-ramDeterministic-v4
+493 KungFuMaster-ramNoFrameskip-v0
+494 KungFuMaster-ramNoFrameskip-v4
+495 KungFuMaster-v0
+496 KungFuMaster-v4
+497 KungFuMasterDeterministic-v0
+498 KungFuMasterDeterministic-v4
+499 KungFuMasterNoFrameskip-v0
+500 KungFuMasterNoFrameskip-v4
+501 LunarLander-v2
+502 LunarLanderContinuous-v2
+503 MemorizeDigits-v0
+504 MontezumaRevenge-ram-v0
+505 MontezumaRevenge-ram-v4
+506 MontezumaRevenge-ramDeterministic-v0
+507 MontezumaRevenge-ramDeterministic-v4
+508 MontezumaRevenge-ramNoFrameskip-v0
+509 MontezumaRevenge-ramNoFrameskip-v4
+510 MontezumaRevenge-v0
+511 MontezumaRevenge-v4
+512 MontezumaRevengeDeterministic-v0
+513 MontezumaRevengeDeterministic-v4
+514 MontezumaRevengeNoFrameskip-v0
+515 MontezumaRevengeNoFrameskip-v4
+516 MountainCar-v0
+517 MountainCarContinuous-v0
+518 MsPacman-ram-v0
+519 MsPacman-ram-v4
+520 MsPacman-ramDeterministic-v0
+521 MsPacman-ramDeterministic-v4
+522 MsPacman-ramNoFrameskip-v0
+523 MsPacman-ramNoFrameskip-v4
+524 MsPacman-v0
+525 MsPacman-v4
+526 MsPacmanDeterministic-v0
+527 MsPacmanDeterministic-v4
+528 MsPacmanNoFrameskip-v0
+529 MsPacmanNoFrameskip-v4
+530 NChain-v0
+531 NameThisGame-ram-v0
+532 NameThisGame-ram-v4
+533 NameThisGame-ramDeterministic-v0
+534 NameThisGame-ramDeterministic-v4
+535 NameThisGame-ramNoFrameskip-v0
+536 NameThisGame-ramNoFrameskip-v4
+537 NameThisGame-v0
+538 NameThisGame-v4
+539 NameThisGameDeterministic-v0
+540 NameThisGameDeterministic-v4
+541 NameThisGameNoFrameskip-v0
+542 NameThisGameNoFrameskip-v4
+543 Pendulum-v0
+544 Phoenix-ram-v0
+545 Phoenix-ram-v4
+546 Phoenix-ramDeterministic-v0
+547 Phoenix-ramDeterministic-v4
+548 Phoenix-ramNoFrameskip-v0
+549 Phoenix-ramNoFrameskip-v4
+550 Phoenix-v0
+551 Phoenix-v4
+552 PhoenixDeterministic-v0
+553 PhoenixDeterministic-v4
+554 PhoenixNoFrameskip-v0
+555 PhoenixNoFrameskip-v4
+556 Pitfall-ram-v0
+557 Pitfall-ram-v4
+558 Pitfall-ramDeterministic-v0
+559 Pitfall-ramDeterministic-v4
+560 Pitfall-ramNoFrameskip-v0
+561 Pitfall-ramNoFrameskip-v4
+562 Pitfall-v0
+563 Pitfall-v4
+564 PitfallDeterministic-v0
+565 PitfallDeterministic-v4
+566 PitfallNoFrameskip-v0
+567 PitfallNoFrameskip-v4
+568 Pong-ram-v0
+569 Pong-ram-v4
+570 Pong-ramDeterministic-v0
+571 Pong-ramDeterministic-v4
+572 Pong-ramNoFrameskip-v0
+573 Pong-ramNoFrameskip-v4
+574 Pong-v0
+575 Pong-v4
+576 PongDeterministic-v0
+577 PongDeterministic-v4
+578 PongNoFrameskip-v0
+579 PongNoFrameskip-v4
+580 Pooyan-ram-v0
+581 Pooyan-ram-v4
+582 Pooyan-ramDeterministic-v0
+583 Pooyan-ramDeterministic-v4
+584 Pooyan-ramNoFrameskip-v0
+585 Pooyan-ramNoFrameskip-v4
+586 Pooyan-v0
+587 Pooyan-v4
+588 PooyanDeterministic-v0
+589 PooyanDeterministic-v4
+590 PooyanNoFrameskip-v0
+591 PooyanNoFrameskip-v4
+592 PrivateEye-ram-v0
+593 PrivateEye-ram-v4
+594 PrivateEye-ramDeterministic-v0
+595 PrivateEye-ramDeterministic-v4
+596 PrivateEye-ramNoFrameskip-v0
+597 PrivateEye-ramNoFrameskip-v4
+598 PrivateEye-v0
+599 PrivateEye-v4
+600 PrivateEyeDeterministic-v0
+601 PrivateEyeDeterministic-v4
+602 PrivateEyeNoFrameskip-v0
+603 PrivateEyeNoFrameskip-v4
+604 Pusher-v2
+605 Qbert-ram-v0
+606 Qbert-ram-v4
+607 Qbert-ramDeterministic-v0
+608 Qbert-ramDeterministic-v4
+609 Qbert-ramNoFrameskip-v0
+610 Qbert-ramNoFrameskip-v4
+611 Qbert-v0
+612 Qbert-v4
+613 QbertDeterministic-v0
+614 QbertDeterministic-v4
+615 QbertNoFrameskip-v0
+616 QbertNoFrameskip-v4
+617 Reacher-v2
+618 RepeatCopy-v0
+619 Reverse-v0
+620 ReversedAddition-v0
+621 ReversedAddition3-v0
+622 Riverraid-ram-v0
+623 Riverraid-ram-v4
+624 Riverraid-ramDeterministic-v0
+625 Riverraid-ramDeterministic-v4
+626 Riverraid-ramNoFrameskip-v0
+627 Riverraid-ramNoFrameskip-v4
+628 Riverraid-v0
+629 Riverraid-v4
+630 RiverraidDeterministic-v0
+631 RiverraidDeterministic-v4
+632 RiverraidNoFrameskip-v0
+633 RiverraidNoFrameskip-v4
+634 RoadRunner-ram-v0
+635 RoadRunner-ram-v4
+636 RoadRunner-ramDeterministic-v0
+637 RoadRunner-ramDeterministic-v4
+638 RoadRunner-ramNoFrameskip-v0
+639 RoadRunner-ramNoFrameskip-v4
+640 RoadRunner-v0
+641 RoadRunner-v4
+642 RoadRunnerDeterministic-v0
+643 RoadRunnerDeterministic-v4
+644 RoadRunnerNoFrameskip-v0
+645 RoadRunnerNoFrameskip-v4
+646 Robotank-ram-v0
+647 Robotank-ram-v4
+648 Robotank-ramDeterministic-v0
+649 Robotank-ramDeterministic-v4
+650 Robotank-ramNoFrameskip-v0
+651 Robotank-ramNoFrameskip-v4
+652 Robotank-v0
+653 Robotank-v4
+654 RobotankDeterministic-v0
+655 RobotankDeterministic-v4
+656 RobotankNoFrameskip-v0
+657 RobotankNoFrameskip-v4
+658 Roulette-v0
+659 Seaquest-ram-v0
+660 Seaquest-ram-v4
+661 Seaquest-ramDeterministic-v0
+662 Seaquest-ramDeterministic-v4
+663 Seaquest-ramNoFrameskip-v0
+664 Seaquest-ramNoFrameskip-v4
+665 Seaquest-v0
+666 Seaquest-v4
+667 SeaquestDeterministic-v0
+668 SeaquestDeterministic-v4
+669 SeaquestNoFrameskip-v0
+670 SeaquestNoFrameskip-v4
+671 Skiing-ram-v0
+672 Skiing-ram-v4
+673 Skiing-ramDeterministic-v0
+674 Skiing-ramDeterministic-v4
+675 Skiing-ramNoFrameskip-v0
+676 Skiing-ramNoFrameskip-v4
+677 Skiing-v0
+678 Skiing-v4
+679 SkiingDeterministic-v0
+680 SkiingDeterministic-v4
+681 SkiingNoFrameskip-v0
+682 SkiingNoFrameskip-v4
+683 Solaris-ram-v0
+684 Solaris-ram-v4
+685 Solaris-ramDeterministic-v0
+686 Solaris-ramDeterministic-v4
+687 Solaris-ramNoFrameskip-v0
+688 Solaris-ramNoFrameskip-v4
+689 Solaris-v0
+690 Solaris-v4
+691 SolarisDeterministic-v0
+692 SolarisDeterministic-v4
+693 SolarisNoFrameskip-v0
+694 SolarisNoFrameskip-v4
+695 SpaceInvaders-ram-v0
+696 SpaceInvaders-ram-v4
+697 SpaceInvaders-ramDeterministic-v0
+698 SpaceInvaders-ramDeterministic-v4
+699 SpaceInvaders-ramNoFrameskip-v0
+700 SpaceInvaders-ramNoFrameskip-v4
+701 SpaceInvaders-v0
+702 SpaceInvaders-v4
+703 SpaceInvadersDeterministic-v0
+704 SpaceInvadersDeterministic-v4
+705 SpaceInvadersNoFrameskip-v0
+706 SpaceInvadersNoFrameskip-v4
+707 StarGunner-ram-v0
+708 StarGunner-ram-v4
+709 StarGunner-ramDeterministic-v0
+710 StarGunner-ramDeterministic-v4
+711 StarGunner-ramNoFrameskip-v0
+712 StarGunner-ramNoFrameskip-v4
+713 StarGunner-v0
+714 StarGunner-v4
+715 StarGunnerDeterministic-v0
+716 StarGunnerDeterministic-v4
+717 StarGunnerNoFrameskip-v0
+718 StarGunnerNoFrameskip-v4
+719 Striker-v2
+720 Swimmer-v2
+721 Swimmer-v3
+722 Taxi-v2
+723 Tennis-ram-v0
+724 Tennis-ram-v4
+725 Tennis-ramDeterministic-v0
+726 Tennis-ramDeterministic-v4
+727 Tennis-ramNoFrameskip-v0
+728 Tennis-ramNoFrameskip-v4
+729 Tennis-v0
+730 Tennis-v4
+731 TennisDeterministic-v0
+732 TennisDeterministic-v4
+733 TennisNoFrameskip-v0
+734 TennisNoFrameskip-v4
+735 Thrower-v2
+736 TimePilot-ram-v0
+737 TimePilot-ram-v4
+738 TimePilot-ramDeterministic-v0
+739 TimePilot-ramDeterministic-v4
+740 TimePilot-ramNoFrameskip-v0
+741 TimePilot-ramNoFrameskip-v4
+742 TimePilot-v0
+743 TimePilot-v4
+744 TimePilotDeterministic-v0
+745 TimePilotDeterministic-v4
+746 TimePilotNoFrameskip-v0
+747 TimePilotNoFrameskip-v4
+748 Tutankham-ram-v0
+749 Tutankham-ram-v4
+750 Tutankham-ramDeterministic-v0
+751 Tutankham-ramDeterministic-v4
+752 Tutankham-ramNoFrameskip-v0
+753 Tutankham-ramNoFrameskip-v4
+754 Tutankham-v0
+755 Tutankham-v4
+756 TutankhamDeterministic-v0
+757 TutankhamDeterministic-v4
+758 TutankhamNoFrameskip-v0
+759 TutankhamNoFrameskip-v4
+760 UpNDown-ram-v0
+761 UpNDown-ram-v4
+762 UpNDown-ramDeterministic-v0
+763 UpNDown-ramDeterministic-v4
+764 UpNDown-ramNoFrameskip-v0
+765 UpNDown-ramNoFrameskip-v4
+766 UpNDown-v0
+767 UpNDown-v4
+768 UpNDownDeterministic-v0
+769 UpNDownDeterministic-v4
+770 UpNDownNoFrameskip-v0
+771 UpNDownNoFrameskip-v4
+772 Venture-ram-v0
+773 Venture-ram-v4
+774 Venture-ramDeterministic-v0
+775 Venture-ramDeterministic-v4
+776 Venture-ramNoFrameskip-v0
+777 Venture-ramNoFrameskip-v4
+778 Venture-v0
+779 Venture-v4
+780 VentureDeterministic-v0
+781 VentureDeterministic-v4
+782 VentureNoFrameskip-v0
+783 VentureNoFrameskip-v4
+784 VideoPinball-ram-v0
+785 VideoPinball-ram-v4
+786 VideoPinball-ramDeterministic-v0
+787 VideoPinball-ramDeterministic-v4
+788 VideoPinball-ramNoFrameskip-v0
+789 VideoPinball-ramNoFrameskip-v4
+790 VideoPinball-v0
+791 VideoPinball-v4
+792 VideoPinballDeterministic-v0
+793 VideoPinballDeterministic-v4
+794 VideoPinballNoFrameskip-v0
+795 VideoPinballNoFrameskip-v4
+796 Walker2d-v2
+797 Walker2d-v3
+798 WizardOfWor-ram-v0
+799 WizardOfWor-ram-v4
+800 WizardOfWor-ramDeterministic-v0
+801 WizardOfWor-ramDeterministic-v4
+802 WizardOfWor-ramNoFrameskip-v0
+803 WizardOfWor-ramNoFrameskip-v4
+804 WizardOfWor-v0
+805 WizardOfWor-v4
+806 WizardOfWorDeterministic-v0
+807 WizardOfWorDeterministic-v4
+808 WizardOfWorNoFrameskip-v0
+809 WizardOfWorNoFrameskip-v4
+810 YarsRevenge-ram-v0
+811 YarsRevenge-ram-v4
+812 YarsRevenge-ramDeterministic-v0
+813 YarsRevenge-ramDeterministic-v4
+814 YarsRevenge-ramNoFrameskip-v0
+815 YarsRevenge-ramNoFrameskip-v4
+816 YarsRevenge-v0
+817 YarsRevenge-v4
+818 YarsRevengeDeterministic-v0
+819 YarsRevengeDeterministic-v4
+820 YarsRevengeNoFrameskip-v0
+821 YarsRevengeNoFrameskip-v4
+822 Zaxxon-ram-v0
+823 Zaxxon-ram-v4
+824 Zaxxon-ramDeterministic-v0
+825 Zaxxon-ramDeterministic-v4
+826 Zaxxon-ramNoFrameskip-v0
+827 Zaxxon-ramNoFrameskip-v4
+828 Zaxxon-v0
+829 Zaxxon-v4
+830 ZaxxonDeterministic-v0
+831 ZaxxonDeterministic-v4
+832 ZaxxonNoFrameskip-v0
+833 ZaxxonNoFrameskip-v4
+#+end_example
+
+* How to Run Scheme Code
+
+... and how to pass its results to Python.
+
+#+name: scheme-sample
+#+begin_src scheme :session fubar :results output
+  (define x "foo")
+  (write x)
+  (newline)
+#+end_src
+
+#+begin_src python :var from_scheme=scheme-sample :results output
+print(f"scheme says: {from_scheme}")
+print(f"python says 'bar'")
+#+end_src
+
+* Sandbox
+
+1 Aliquam erat volutpat. Nunc eleifend leo vitae magna. In id erat non orci
+commodo lobortis. Proin neque massa, cursus ut, gravida ut, lobortis eget,
+lacus. Sed diam.
