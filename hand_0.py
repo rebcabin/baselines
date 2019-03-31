@@ -14,13 +14,13 @@ env = gym.make("TwoHandsManipulateBlocks-v0")
 # env = gym.make("CartPole-v1")
 # env = gym.make("Zaxxon-v0")
 
-observation = env.reset()
-for _ in range(2500):
+_ = env.reset()
+for _ in range(25):
     # through core.py::Wrapper.render,
     # hand_env.py::HandEnv.render
     # robot_env.py::RobotEnv.render
     env.render()
-    action = env.action_space.sample() # your agent here
+    action = env.action_space.sample()  # your agent here
     # (this takes random actions)
     observation, reward, done, info = env.step(action)
     if done:

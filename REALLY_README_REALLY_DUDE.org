@@ -128,7 +128,6 @@ Type =C-c C-c= in the following block:
 
 * Control Shadow Hands with Dolphin
 
-
 ** Dimensions and Degrees of Freedom
 
 *** One Hand
@@ -138,8 +137,8 @@ The following code gets the original, old environment to tell us the dimensions.
 #+begin_src python :results export
   import gym
   import numpy as np
-  # env = gym.make("TwoHandsManipulateBlocks-v0")
-  env = gym.make("HandManipulateBlock-v0")
+  env = gym.make("TwoHandsManipulateBlocks-v0")
+  # env = gym.make("HandManipulateBlock-v0")
   _= env.reset()
   action = env.action_space.sample() # your agent here
   observation, reward, done, info = env.step(action)
@@ -152,6 +151,12 @@ The following code gets the original, old environment to tell us the dimensions.
                  }.items())
   return result
 #+end_src
+
+#+RESULTS:
+| shape(observation)  | (115) |
+| shape(achived goal) | (7)   |
+| shape(desired goal) | (7)   |
+| shape(action)       | (20)  |
 
 The =achieved_goal= and =desired_goal= are 7, concatenating an $(x, y, z)$
 position and a $(w_q,x_q,y_q,z_q)$ quaternion. The quaternion is normalized,
@@ -447,6 +452,10 @@ Give it a go, and best of luck:
   return list({"action space": env.action_space,
                "observation space": env.observation_space}.items())
 #+end_src
+
+#+RESULTS:
+| action space      | Box  | (20)                                                               |
+| observation space | Dict | (achieved_goal:Box (7) desired_goal:Box (7) observation:Box (115)) |
 
 ** User Interface
 
