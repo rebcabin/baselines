@@ -2,13 +2,19 @@ import gym
 env = gym.make("TwoHandsManipulateBlocks-v0")
 # env = gym.make("HandManipulateBlock-v0")
 
+# [[[ bbeckman:
 # original was "HandManipulateBlock{}-v0, which is registered to
-# <-- gym.envs.robotics.HandBlockEnv in manipulate.py
+# <-- gym.envs.robotics.HandBlockEnv, which happens to be in manipulate.py.
+# The registration code is in envs/__init__.py, line 407.
 #
 # "TwoHandsManipulateBlocks-v0" started as a plumbed copy, registered to
-# <-- gym.envs.robotics:TwoHandsBlockEnvBBeckman in manipulate.py
+# <-- gym.envs.robotics:TwoHandsBlockEnvBBeckman, which happens to be in
+# manipulate.py. The registration code is in envs/__init__.py, line 415.
+# The registration code specifies some initial conditions that may have
+# to change (TODO).
 #
 # Search this repository for "bbeckman" to see my changes all over the place.
+# ]]]
 
 # env = gym.make("HandManipulateBlock-v0")
 # env = gym.make("CartPole-v1")
