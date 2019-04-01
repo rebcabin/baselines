@@ -21,7 +21,7 @@ env = gym.make("TwoHandsManipulateBlocks-v0")
 # env = gym.make("Zaxxon-v0")
 
 _ = env.reset()
-for _ in range(25):
+for _ in range(250):
     # through core.py::Wrapper.render,
     # hand_env.py::HandEnv.render
     # robot_env.py::RobotEnv.render
