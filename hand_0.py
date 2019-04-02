@@ -1,5 +1,5 @@
 import gym
-env = gym.make("TwoHandsManipulateBlocks-v0")
+env = gym.make("TwoHandsManipulateBlocks-v0")  # manipulate.py
 # env = gym.make("HandManipulateBlock-v0")
 
 # [[[ bbeckman:
@@ -31,5 +31,7 @@ for _ in range(250):
     observation, reward, done, info = env.step(action)
     _ = env.observation_space
     if done:
-        observation = env.reset()
+        _ = env.reset()
+    # [[[ bbeckman: inspect the following in the debugger ]]]
+    observation_space = env.observation_space
 env.close()
