@@ -21,6 +21,7 @@ env = gym.make("TwoHandsManipulateBlocks-v0")  # manipulate.py
 # env = gym.make("Zaxxon-v0")
 
 _ = env.reset()
+
 for _ in range(250):
     # through core.py::Wrapper.render,
     # hand_env.py::HandEnv.render
@@ -29,9 +30,10 @@ for _ in range(250):
     action = env.action_space.sample()  # your agent here
     # (this takes random actions)
     observation, reward, done, info = env.step(action)
+    # [[[ bbeckman: inspect the following in the debugger ]]]
+    observation_space = env.observation_space
     _ = env.observation_space
     if done:
         _ = env.reset()
-    # [[[ bbeckman: inspect the following in the debugger ]]]
-    observation_space = env.observation_space
+
 env.close()
