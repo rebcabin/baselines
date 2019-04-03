@@ -1,5 +1,5 @@
 import gym
-
+import numpy as np
 env = gym.make("TwoHandsManipulateBlocks-v0")  # manipulate.py
 # env = gym.make("HandManipulateBlock-v0")
 
@@ -22,6 +22,33 @@ env = gym.make("TwoHandsManipulateBlocks-v0")  # manipulate.py
 # env = gym.make("Zaxxon-v0")
 
 _ = env.reset()
+
+ONE_HAND_STATE_DIM = 48
+ONE_CUBE_STATE_DIM = 13
+ONE_SIDE_STATE_DIM = ONE_HAND_STATE_DIM + ONE_CUBE_STATE_DIM
+ONE_HAND_ACTION_DIM = 20
+ONE_LINEAR_REGULATOR_DIM = ONE_SIDE_STATE_DIM * ONE_HAND_ACTION_DIM
+
+
+def lin_reg_matrix_from_lin_reg_vector(vec):
+    pass
+
+
+def lin_reg_vector_from_lin_reg_matrix(mat):
+    pass
+
+
+def new_random_linear_regulator(sigma):
+    result = np.random
+    return result
+
+
+def test_pytest_itself():
+    assert True
+
+
+state_left = np.zeros([20, 61])
+state_rigt = np.zeros([20, 61])
 
 for _ in range(250):
     # through core.py::Wrapper.render,
