@@ -30,12 +30,30 @@ ONE_HAND_ACTION_DIM = 20
 ONE_LINEAR_REGULATOR_DIM = ONE_SIDE_STATE_DIM * ONE_HAND_ACTION_DIM
 
 
-def lin_reg_matrix_from_lin_reg_vector(vec):
+def lin_reg_matrix_from_lin_reg_vector(vec, new_shape):
     pass
 
 
-def lin_reg_vector_from_lin_reg_matrix(mat):
+def lin_reg_vector_from_lin_reg_matrix(mat, new_shape):
     pass
+
+
+def test_vec_from_mat():
+    mat = np.array([[1, 2, 3],
+                    [4, 5, 6]])
+    vec = np.reshape(mat, (6,))
+    temp0 = vec == np.array([1, 2, 3, 4, 5, 6])
+    result = np.all(temp0)
+    assert result
+
+
+def test_mat_from_vec():
+    vec = np.array([1, 2, 3, 4, 5, 6])
+    mat = np.reshape(vec, (2, 3))
+    temp0 = mat == np.array([[1, 2, 3],
+                             [4, 5, 6]])
+    result = np.all(temp0)
+    assert result
 
 
 def new_random_linear_regulator(sigma):
@@ -50,7 +68,7 @@ def test_pytest_itself():
 state_left = np.zeros([20, 61])
 state_rigt = np.zeros([20, 61])
 
-for _ in range(250):
+for _ in range(25):
     # through core.py::Wrapper.render,
     # hand_env.py::HandEnv.render
     # robot_env.py::RobotEnv.render
