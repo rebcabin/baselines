@@ -5,7 +5,7 @@ class Buffer(object):
     def __init__(self, env, nsteps, size=50000):
         self.nenv = env.num_envs
         self.nsteps = nsteps
-        # self.nh, self.nw, self.nc = env.observation_space.shape
+        # self.nh, self.nw, self.nc = env.inspect_me_in_debugger.shape
         self.obs_shape = env.observation_space.shape
         self.obs_dtype = env.observation_space.dtype
         self.ac_dtype = env.action_space.dtype

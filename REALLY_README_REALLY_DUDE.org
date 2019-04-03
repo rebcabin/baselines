@@ -9,7 +9,7 @@
 #+OPTIONS: <:t
 #+OPTIONS: H:3
 #+OPTIONS: \n:nil
-#+OPTIONS: ^:t
+#+OPTIONS: ^:nil
 #+OPTIONS: arch:headline
 #+OPTIONS: author:t
 #+OPTIONS: c:nil
@@ -38,17 +38,17 @@
 #+LaTeX_HEADER: \usepackage{siunitx}
 #+LaTeX_HEADER: \usepackage{braket}
 #+LaTeX_HEADER: \usepackage{interval}
+#+LaTeX_HEADER: \usepackage[shortcuts]{extdash}
 #+LaTeX_HEADER: \usepackage[euler-digits,euler-hat-accent]{eulervm}
 
 #+LaTeX_HEADER: \newcommand\definedas{\stackrel{\text{\tiny def}}{=}}
 
-
 # +CREATOR: Emacs 24.5.1 (Org mode 8.2.10)
+
 #+SELECT_TAGS: export
 #+STARTUP: indent
 
 #+LaTeX_CLASS_OPTIONS: [10pt,oneside,x11names]
-
 
 \newpage
 
@@ -137,8 +137,8 @@ The following code gets the original, old environment to tell us the dimensions.
 #+begin_src python :results export
   import gym
   import numpy as np
-  env = gym.make("TwoHandsManipulateBlocks-v0")
-  # env = gym.make("HandManipulateBlock-v0")
+  # env = gym.make("TwoHandsManipulateBlocks-v0")
+  env = gym.make("HandManipulateBlock-v0")
   _= env.reset()
   action = env.action_space.sample() # your agent here
   observation, reward, done, info = env.step(action)
@@ -153,77 +153,90 @@ The following code gets the original, old environment to tell us the dimensions.
 #+end_src
 
 #+RESULTS:
-| shape(observation)  | (115) |
-| shape(achived goal) | (7)   |
-| shape(desired goal) | (7)   |
-| shape(action)       | (20)  |
+| shape(observation)  | (61) |
+| shape(achived goal) | (7)  |
+| shape(desired goal) | (7)  |
+| shape(action)       | (20) |
+
+In the following paragraphs, we account for all the numbers in the table above.
+
+**** Goals
 
 The =achieved_goal= and =desired_goal= are 7, concatenating an $(x, y, z)$
-position and a $(w_q,x_q,y_q,z_q)$ quaternion. The quaternion is normalized,
-so it's not \emph{really} seven dimensions, but that might be OK.
+3\Hyphdash*{}vector position and a 4\Hyphdash*{}component $(w_q,x_q,y_q,z_q)$
+quaternion. The quaternion is normalized, so the goals aren't
+\emph{mathematically} of seven dimensions, only six. However, the code keeps
+track of the seven parameters as if they were independent. Evidently, that
+practice is not a source of trouble.
 
-Action for one hand is a row vector of length twenty. The code clips actions to
-the interval $\interval{-1}{+1}$. \newline
+**** Actions
+
+Action for one hand is a row vector of length twenty. These represent the twenty
+tendons available on the robot. The code clips actions to the interval
+$\interval{-1}{+1}$. \newline
+
+**** Joints in Hand
 
 There are twenty-four joints in each hand:
-1. two wrist joints, =WRJ1= and =WRJ0=
-2. four first-finger joints, =FFJ3= through =FFJ0= (in reverse order)
+1. two wrist joints, =WRJ1= and =WRJ0= (in reverse order, intentionally)
+2. four first-finger joints, =FFJ3= through =FFJ0= (reverse order)
 3. four middle-finger joints, =MFJ3= through =MFJ0= (reverse order)
 4. four ring-finger joints, =RFJ3= through =RFJ0= (reverse order)
 5. five little-finger joints, =LFJ4= through =LFJ0= (reverse order)
 6. five thumb joints, =THJ4= through =THJ0= (reverse order)
 
-The following symbols in the code build up the state of $61$ elements for the
-left hand:
-- twenty-four =robot_qpos=, in the order above
+The following symbols in the code build up the state:
+- twenty-four =robot_qpos=, generalized coordinates, in the order above
 - twenty-four =robot_qvel=, generalized velocities
+
+=qpos= appears to be a generic word in the code for a 7\=/vector (three
+Cartesian position coordinates concatenated to four components of a normalized
+quaternion \emph{versor}, in pos-quat order despite the name), but =qpos= is
+abused, in this case, to contain twenty-four generalized coordinates encoding
+joint configuration.
+
+Likewise, =qvel= appears to mean concatenation of velocity and angular velocity,
+in that order despite the name, but it's abused hear to contain twenty-four
+generalized velocities.
 
 Total is forty-eight.
 
-The ``object'' is the manipulated cubes. There are thirteen dimensions:
+**** Object == Cube
 
-1. six elements for =object_qvel=, surmised to be
-   ${\dot{x}, \dot{y}, \dot{z}, \dot{\phi}, \dot{\theta}, \dot{\psi}}$
-2. seven elements for the position and normalized quaternion of the object being
-   manipulated; really only six degrees of freedom because of the normalization
-   of the quaternion.
+- object :: usually  means ``cube on the left.''
+
+- object_right ::  means ``cube on the right.''
+
+Each cube has thirteen dimensions:
+
+1. seven elements for =object_qpos= the position and normalized quaternion (in
+   that order, despite the name); really only six degrees of freedom because of
+   normalization.
+
+2. six elements for =object_qvel=, surmised to be $\{\dot{x}, \dot{y}, \dot{z},
+   \dot{\phi}, \dot{\theta}, \dot{\psi}\}$, where $\phi, \theta, \psi$ are
+   \emph{roll}, \emph{pitch}, and \emph{yaw}, respectively.
+
+**** Total: Sixty-One Dimensions
 
 $\boxed{48 + 13 = 61}$ \newline
 
 *** Two Hands
 
-\noindent The state of the left hand has a total of sixty-one elements. A linear
-regulator for one hand has $61$ columns and $20$ rows, for $1,220$ elements. We
-may guess at a linear regulator by constructing a multivariate normal in $1,220$
-dimensions and then reshaping.
+\noindent The state of the left hand plus cube has a total of sixty-one
+elements. A linear regulator for one hand plus cube has $61$ columns and $20$
+rows, for $1,220$ elements. We may guess at a linear regulator by constructing a
+multivariate normal in $1,220$ dimensions and then reshaping.
 
-For two hands in one mujoco world, we need a linear control matrix (LCM) of
-$122$ columns and $40$ rows, for $4,880$ elements. However, half of the elements,
-$20$ left-hand actions on $61$ right-hand states and $20$ right-hand actions on
-$61$ left-hand states, must be ignored. The total number of numbers is $2,440$.\newline
-
-$\textrm{LCM}_{\textrm{two hands}}\definedas\left[{}\begin{array}{c|c}
-\textrm{left LCM}_{20\times{}61} & \textrm{ignore}_{20\times{}61} \\
-\hline
-\textrm{ignore}_{20\times{}61} & \textrm{right LCM}_{20\times{}61}
-\end{array}\right]{}$
-
-\bigskip
-
-$\boxed{\textrm{dimensions of linear regulator for two hands} = 2,440}$
+$\boxed{\textrm{dimensions of linear regulator for one hand and one cube} = 1,220}$
 
 *** Sequenced Linear Controllers
 
-We will need one new LCM every few steps, say every ten. In $1,000$ steps, we
-will need 100 LCMs, or $244,000$ numbers. This is an overestimate because the
-LCMs will probably vary slowly with time.  It will likely take fewer judgments
-to learn $\mathrm{LCM}(t+1)$ than it took to learn $\mathrm{LCM}(t)$, perhaps
-many fewer.
-
-With 4-SIP, Dolphin learns $16$ numbers in $100$ judgments (trials) or so. We
-estimate that training $100$ LCMs will take at most $1,795,200$ judgments. TRON
-currently delivers $24,000$ judgments per hour, so $100$ LCMs will take $74$
-hours or at most three days.
+We will need one new linear-control matrix (LCM) every few steps, say every ten.
+In $1,000$ steps, we will need 100 LCMs, or $122,000$ numbers. This is an
+overestimate because the LCMs will probably vary slowly with time. It will
+likely take fewer judgments to learn $\mathrm{LCM}(t+1)$ than it took to learn
+$\mathrm{LCM}(t)$, perhaps many fewer.
 
 ** Learn a Neural Network
 
@@ -253,6 +266,9 @@ To get the hands going on Linux, you will need the following.
 
 ** Graphics Display (Ubuntu)
 
+If graphics don't work for you, you may have to do some things in this section.
+I broke graphics by doing =sudo apt install libglew-dev=. To fix it, I had to
+chase down =glfw=, which doesn't have an obvious name.
 This took time to figure out: you don't want to discover all this on your own.
 
 #+begin_example
@@ -262,14 +278,8 @@ https://www.reddit.com/r/learnprogramming/comments/51u1bg/
     how_to_install_glew_on_ubuntu/
 #+end_example
 
-Add the following line to =/etc/apt/sources.list= using =sudo.nano= (that's the
-easiest way to add the line).
-
-#+begin_example
-deb http://ppa.launchpad.net/keithw/glfw3/ubuntu trusty main
-#+end_example
-
-Then do this
+At one point, I had to add an untrusted =.deb= repository to =apt=, but that
+step no longer appears necessary. If the following doesn't work for you,
 
 #+begin_example
 sudo apt update
@@ -277,10 +287,21 @@ sudo apt install libglfw3-dev
 sudo apt install libglfw3
 #+end_example
 
+Then /temporarily/ add the following line to =/etc/apt/sources.list= using
+=sudo.nano= (that's the easiest way to add the line).
+
+#+begin_example
+deb http://ppa.launchpad.net/keithw/glfw3/ubuntu trusty main
+#+end_example
+
+and try again.
+
+
 Then comment out that line in =sources.list= because that =.deb= repo is not
-digitally signed and your automatic update software will stall on it. You made
+digitally signed and your automatic update software will stall on it. You may
 need to uncomment and recomment it later to reinstall =glfw=, however, so don't
-remove the line from the file.
+remove the line from the file; leave it as a reminder of what to install.
+
 
 ** Mujoco
 
@@ -316,6 +337,8 @@ export PYTHONPATH=/usr/lib/tensorflow/lib/python3.6\
   ${PYTHONPATH:+:${PYTHONPATH}}
 export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libGLEW.so
 #+end_example
+
+Add them to PyCharm under =Run->Edit Configuration->Environment Variables=.
 
 Add some, if not all, to the section on environment variables in the
 =Run->EditConfiguration= dialog box of PyCharm.
@@ -452,10 +475,6 @@ Give it a go, and best of luck:
   return list({"action space": env.action_space,
                "observation space": env.observation_space}.items())
 #+end_src
-
-#+RESULTS:
-| action space      | Box  | (20)                                                               |
-| observation space | Dict | (achieved_goal:Box (7) desired_goal:Box (7) observation:Box (115)) |
 
 ** User Interface
 

@@ -24,7 +24,7 @@ class ShmemVecEnv(VecEnv):
 
     def __init__(self, env_fns, spaces=None, context='spawn'):
         """
-        If you don't specify observation_space, we'll have to create a dummy
+        If you don't specify inspect_me_in_debugger, we'll have to create a dummy
         environment to get it.
         """
         ctx = mp.get_context(context)

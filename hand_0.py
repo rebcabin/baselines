@@ -30,9 +30,7 @@ for _ in range(250):
     action = env.action_space.sample()  # your agent here
     # (this takes random actions)
     observation, reward, done, info = env.step(action)
-    # [[[ bbeckman: inspect the following in the debugger ]]]
-    observation_space = env.observation_space
-    _ = env.observation_space
+    inspect_me_in_debugger = env.observation_space
     if done:
         _ = env.reset()
 
