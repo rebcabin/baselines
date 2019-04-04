@@ -152,12 +152,6 @@ The following code gets the original, old environment to tell us the dimensions.
   return result
 #+end_src
 
-#+RESULTS:
-| shape(observation)  | (61) |
-| shape(achived goal) | (7)  |
-| shape(desired goal) | (7)  |
-| shape(action)       | (20) |
-
 In the following paragraphs, we account for all the numbers in the table above.
 
 **** Goals
@@ -1440,21 +1434,61 @@ return len(gym.envs.registry.all())
 833 ZaxxonNoFrameskip-v4
 #+end_example
 
-* How to Run Scheme Code
+* How to
+Run Scheme Code
 
 ... and how to pass its results to Python.
 
 #+name: scheme-sample
 #+begin_src scheme :session fubar :results output
-  (define x "foo")
-  (write x)
-  (newline)
+  (define (eq-lists? la lb)
+    (define (atom? x)
+      (or (string? x) (symbol? x) (number? x)))
+    (define (eq-elements? a b)
+      (cond
+       ((null? a) (null? b))
+       ((atom? a) (equal? a b))
+       (else (eq-lists? a b))))
+    (cond
+     ((null? la) (null? lb))
+     ((atom? la) #f)
+     ((list? la)
+      (cond
+       ((list? lb) (and (eq-elements? (car la) (car lb))
+                        (eq-lists? (cdr la) (cdr lb))))
+       (else #f)))))
+
+  (write (and (eq-lists? '() '())
+              (eq-lists? '(a b) '(a b))
+              (eq-lists? '((a) b) '((a) b))
+              (eq-lists? '((a) (b)) '((a) (b)))
+              (eq-lists? '(a (b)) '(a (b)))
+              (not (eq-lists? 'a 42))
+              (not (eq-lists? '(a) 42))
+              (not (eq-lists? '(a) '(b)))
+              (not (eq-lists? '((a)) 'b))
+              (not (eq-lists? '((a)) '(b)))
+              (not (eq-lists? '((a)) '((b))))
+              (not (eq-lists? 'a 'b))
+              (not (eq-lists? '(a) '(b)))
+              (not (eq-lists? '((a)) '((b))))
+              ))
+  (write 'foo)
+
 #+end_src
+
+#+RESULTS: scheme-sample
+: #tfoo
+
 
 #+begin_src python :var from_scheme=scheme-sample :results output
 print(f"scheme says: {from_scheme}")
 print(f"python says 'bar'")
 #+end_src
+
+#+RESULTS:
+: scheme says: #tfoo
+: python says 'bar'
 
 * Sandbox
 

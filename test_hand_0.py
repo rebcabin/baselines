@@ -1,7 +1,9 @@
 import gym
 import numpy as np
-import scipy as sp
-import scipy.sparse as sparse
+import matplotlib
+import matplotlib.pyplot
+import nengo
+import timeit
 
 env = gym.make("TwoHandsManipulateBlocks-v0")  # manipulate.py
 # env = gym.make("HandManipulateBlock-v0")
@@ -71,30 +73,106 @@ def test_mat_from_vec():
     assert result
 
 
-def new_spherical_LRV(mu, sigma):
-    assert mu.shape == LRV_SHAPE
-    # cov = sparse.identity(LRV_DIM, dtype=np.float32)
-    # cov = np.array(LRM_SHAPE, dtype=np.float32)
-    cov = np.array((42, 42), dtype=np.float32)
-    assert cov.shape == (42, 42)
-    assert LRM_SHAPE == (20, 61)
-    # git problem?
-    assert cov.shape == (20, 61)
-    # assert cov.shape == LRM_SHAPE
-    # for i in range(LRV_DIM):
-    #     cov.itemset((i, i), 1.0)
-    # assert cov.shape == LRV_DIM
-    return cov
-    # result = np.random.multivariate_normal(
-    #     mu, sigma * sparse.identity(LRV_DIM))
-    # return result
+def new_spherically_uniform_LRV(sigma_0):
+    dim = LRV_DIM + 2
+    mu = np.zeros(dim, dtype=np.float32)
+    # Sample multinormal in N+2 dims, then throw away any two dims.
+    # the result will be uniform in N dims (see Robotics tech report
+    # 18).
+
+    # Even though shape checks out, np.random doesn't like the sparse matrix.
+    # https://stackoverflow.com/questions/55503057/. My attempt at frugality
+    # fails
+    # cov = sigma_0 * sparse.identity(dim, dtype=np.float32)
+    cov = sigma_0 * np.identity(dim, dtype=np.float32)
+    assert (dim, dim) == cov.shape
+    temp0 = np.random.multivariate_normal(mu, cov)
+    # intentionally raise div-by-zero if denominator *is* zero-vector
+    temp1 = temp0 / np.linalg.norm(temp0)
+    result = temp1[2:]
+    return result
 
 
-def test_new_spherical_LRV():
-    temp0 = new_spherical_LRV(
-        np.zeros(LRV_SHAPE),
-        1.0
-    )
+def test_new_spherically_uniform_LRV():
+    temp0 = new_spherically_uniform_LRV(1.0)
+    assert temp0.shape == LRV_SHAPE
+
+
+def sample_d_ball_method_1(n_points):
+    sigma = 1.0
+    index1 = np.random.randint(0, LRV_DIM + 2)
+    index2 = np.random.randint(0, LRV_DIM + 2)
+    while index1 == index2:
+        index2 = np.random.randint(0, LRV_DIM + 2)
+    temp = [(p[index1], p[index2])
+            for p in [new_spherically_uniform_LRV(sigma)
+                      for _ in range(n_points)]]
+    points = [p / np.linalg.norm(p) for p in temp][2:]
+    return points
+
+
+def sample_d_ball_method_2(n_points):
+    sigma = 1.0
+    index1 = np.random.randint(0, LRV_DIM + 2)
+    index2 = np.random.randint(0, LRV_DIM + 2)
+    while index1 == index2:
+        index2 = np.random.randint(0, LRV_DIM + 2)
+    temp = []
+    for _ in range(n_points):
+        p = new_spherically_uniform_LRV(sigma)
+        temp.append((p[index1], p[index2]))
+    points = [p / np.linalg.norm(p) for p in temp][2:]
+    return points
+
+
+# prove that method2 is faster
+
+
+def sample_d_ball_method_3(d=LRV_DIM, n=10):
+    return nengo.dists.get_samples(
+        nengo.dists.UniformHypersphere(surface=False), n=n, d=d)
+
+
+# print(timeit.timeit("sample_d_ball_method_1(10)",
+#                     setup="from test_hand_0 import sample_d_ball_method_1",
+#                     number=1))
+#
+# print(timeit.timeit("sample_d_ball_method_2(10)",
+#                     setup="from test_hand_0  import sample_d_ball_method_2",
+#                     number=1))
+#
+print(timeit.timeit("sample_d_ball_method_3(10)",
+                    setup="from test_hand_0  import sample_d_ball_method_3",
+                    number=1))
+
+
+def get_random_vector_indices(d=LRV_DIM):
+    index1 = np.random.randint(0, d)
+    index2 = np.random.randint(0, d)
+    while index1 == index2:
+        index2 = np.random.randint(0, d)
+    return index1, index2
+
+
+def test_plot_spherically_uniform_LRVs():
+    n_points = 1000
+    d = 2
+    # sigma = 1.0
+    index1, index2 = get_random_vector_indices(d)
+    # Timing tests have proved that direct iteration is a tiny bit faster
+    # than the nested list comprehension:
+    # points = [(p[index1], p[index2])
+    #           for p in [new_spherically_uniform_LRV(sigma)
+    #                     for _ in range(n_points)]]
+    plottable_points = []
+    points = sample_d_ball_method_3(d=d, n=n_points)
+    for i in range(n_points):
+        p = points[i]
+        plottable_points.append((p[index1], p[index2]))
+    matplotlib.pyplot.scatter(*np.transpose(plottable_points))
+    matplotlib.pyplot.show()
+    result = points
+    assert True
 
 
 def test_pytest_itself():
