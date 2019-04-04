@@ -1,7 +1,6 @@
 import gym
 import numpy as np
-import matplotlib
-import matplotlib.pyplot
+import matplotlib.pyplot as plt
 import nengo
 import timeit
 
@@ -125,12 +124,20 @@ def sample_d_ball_method_2(n_points):
     return points
 
 
-# prove that method2 is faster
+# prove that method3 is fastest
 
 
 def sample_d_ball_method_3(d=LRV_DIM, n=10):
-    return nengo.dists.get_samples(
+    result = nengo.dists.get_samples(
         nengo.dists.UniformHypersphere(surface=False), n=n, d=d)
+    return result
+
+
+def sample_d_ball_method_4(d=LRV_DIM, n=10):
+    temp = nengo.dists.get_samples(
+        nengo.dists.UniformHypersphere(surface=True), n=n, d=d + 2)
+    result = temp[:, 2:]
+    return result
 
 
 # print(timeit.timeit("sample_d_ball_method_1(10)",
@@ -141,12 +148,12 @@ def sample_d_ball_method_3(d=LRV_DIM, n=10):
 #                     setup="from test_hand_0  import sample_d_ball_method_2",
 #                     number=1))
 #
-print(timeit.timeit("sample_d_ball_method_3(10)",
+print(timeit.timeit("sample_d_ball_method_3(d=10)",
                     setup="from test_hand_0  import sample_d_ball_method_3",
                     number=1))
 
 
-def get_random_vector_indices(d=LRV_DIM):
+def get_distinct_random_vector_indices(d=LRV_DIM):
     index1 = np.random.randint(0, d)
     index2 = np.random.randint(0, d)
     while index1 == index2:
@@ -156,21 +163,24 @@ def get_random_vector_indices(d=LRV_DIM):
 
 def test_plot_spherically_uniform_LRVs():
     n_points = 1000
-    d = 2
+    d = 1220
     # sigma = 1.0
-    index1, index2 = get_random_vector_indices(d)
+    index1, index2 = get_distinct_random_vector_indices(d)
     # Timing tests have proved that direct iteration is a tiny bit faster
     # than the nested list comprehension:
     # points = [(p[index1], p[index2])
     #           for p in [new_spherically_uniform_LRV(sigma)
     #                     for _ in range(n_points)]]
     plottable_points = []
-    points = sample_d_ball_method_3(d=d, n=n_points)
+    points = sample_d_ball_method_4(d=d, n=n_points)
+    assert points.shape == (n_points, d)
     for i in range(n_points):
         p = points[i]
         plottable_points.append((p[index1], p[index2]))
-    matplotlib.pyplot.scatter(*np.transpose(plottable_points))
-    matplotlib.pyplot.show()
+    fix, ax = plt.subplots()
+    ax.scatter(*np.transpose(plottable_points))
+    ax.set_aspect(1.0)
+    plt.show()
     result = points
     assert True
 
