@@ -166,11 +166,6 @@ def test_plot_spherically_uniform_LRVs():
     d = 1220
     # sigma = 1.0
     index1, index2 = get_distinct_random_vector_indices(d)
-    # Timing tests have proved that direct iteration is a tiny bit faster
-    # than the nested list comprehension:
-    # points = [(p[index1], p[index2])
-    #           for p in [new_spherically_uniform_LRV(sigma)
-    #                     for _ in range(n_points)]]
     plottable_points = []
     points = sample_d_ball_method_4(d=d, n=n_points)
     assert points.shape == (n_points, d)
