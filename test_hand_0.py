@@ -152,29 +152,34 @@ def new_normally_distributed_lrm(center, sigma):
     return result
 
 
-def action_from_states_and_time_step(
-        left_lrm,
-        rigt_lrm,
-        left_side,
-        rigt_side,
-        time_step):
-    _ignore_for_now = time_step
+LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 1.5
+LRM_SHRINKING_SIGMA = 1.0
+LRM_SHRINKING_FACTOR_HYPERPARAMETER = 0.992
+
+
+def action_from_state(state, t):
+    left_side = state['left_side']
+    rigt_side = state['rigt_side']
+    _ignore_for_now = new_normally_distributed_lrm(
+        center=new_uniformly_random_lrm_at_origin(1.0),
+        sigma=1.0
+    )
+    left_lrm = new_uniformly_random_lrm_at_origin(
+        1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
+    rigt_lrm = new_uniformly_random_lrm_at_origin(
+        1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
+    _ignore_for_now = t
     left_action = np.dot(left_lrm, left_side)
     rigt_action = np.dot(rigt_lrm, rigt_side)
     action = np.concatenate([left_action, rigt_action])
     return action
 
 
-LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 2.0
-LRM_SHRINKING_SIGMA = 1.0
-LRM_SHRINKING_FACTOR_HYPERPARAMETER = 0.992
-
-
 def test_hands():
     sigma = 1.0
     # Start with a random action from mujoco, just so we can get
-    action = env.action_space.sample()  # your agent here
-    observation = env.get_state()
+    # action = env.action_space.sample()  # your agent here
+    action = action_from_state(env.get_state(), t=-1)
     for time_step in range(250):
         # through core.py::Wrapper.render,
         # hand_env.py::HandEnv.render
@@ -182,23 +187,7 @@ def test_hands():
         env.render()
         # (the above takes random actions)
         observation, reward, done, info = env.step(action)
-        inspect_me_in_debugger = env.observation_space
-        left_side = observation['left_side']
-        rigt_side = observation['rigt_side']
-        _ignore_for_now = new_normally_distributed_lrm(
-            center=new_uniformly_random_lrm_at_origin(1.0),
-            sigma=1.0
-        )
-        left_lrm = new_uniformly_random_lrm_at_origin(
-            1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
-        rigt_lrm = new_uniformly_random_lrm_at_origin(
-            1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
-        action = action_from_states_and_time_step(
-            left_lrm,
-            rigt_lrm,
-            left_side,
-            rigt_side,
-            time_step)
+        action = action_from_state(observation, time_step)
         if done:
             _ = env.reset()
     env.close()
