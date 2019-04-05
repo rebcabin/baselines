@@ -154,22 +154,39 @@ def new_normally_distributed_lrm(center, sigma):
 
 LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 1.5
 LRM_SHRINKING_SIGMA = 1.0
-LRM_SHRINKING_FACTOR_HYPERPARAMETER = 0.992
+LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER = 0.992
 LEFT = 0
 RIGT = 1
 LRMS_LIFESPAN_IN_TIME_STEPS_HYPERPARAMETER = 10
 TRIAL_LIFESPAN_IN_TIME_STEPS = 250
+LRMSS_LENGTH = TRIAL_LIFESPAN_IN_TIME_STEPS // \
+               LRMS_LIFESPAN_IN_TIME_STEPS_HYPERPARAMETER
 
 
 def starting_lrms(sigma):
-    return [new_uniform_lrm_at_origin(sigma),
-            new_uniform_lrm_at_origin(sigma)]
+    return [new_uniform_lrm_at_origin(sigma) *
+            LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER,
+            new_uniform_lrm_at_origin(sigma) *
+            LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER]
 
 
-def starting_lrms_sequence(sigma):
-    sequence_length = TRIAL_LIFESPAN_IN_TIME_STEPS // \
-                      LRMS_LIFESPAN_IN_TIME_STEPS_HYPERPARAMETER
-    result = [starting_lrms(sigma) for _ in range(sequence_length)]
+def starting_lrmss(sigma):
+    result = [starting_lrms(sigma)
+              for _ in range(LRMSS_LENGTH)]
+    return result
+
+
+def evolved_lrms(center, sigma):
+    result = [new_normally_distributed_lrm(center, sigma) *
+              LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER,
+              new_normally_distributed_lrm(center, sigma) *
+              LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER]
+    return result
+
+
+def evolved_lrmss(left_or_right, lrmss, sigma):
+    result = [evolved_lrms(lrmss[i][left_or_right], sigma)
+              for i in range(LRMSS_LENGTH)]
     return result
 
 
@@ -190,22 +207,37 @@ def action_from_state(lrms, state, t):
     return action
 
 
+def collect_preference():
+    result = input('Express preference:')
+    return result
+
+
 def test_hands():
     sigma = 1.0
-    # Start with a random action from mujoco, just so we can get
-    # action = env.action_space.sample()  # your agent here
-    lrmss = starting_lrms_sequence(sigma)
+    lrmss = starting_lrmss(sigma)
     action = action_from_state(lrmss[0], env.get_state(), t=-1)
-    for time_step in range(TRIAL_LIFESPAN_IN_TIME_STEPS):
-        # through core.py::Wrapper.render,
-        # hand_env.py::HandEnv.render
-        # robot_env.py::RobotEnv.render
-        env.render()
-        state, reward, done, info = env.step(action)
-        action = action_from_state(
-            get_lrms(lrmss, time_step),
-            state,
-            time_step)
-        if done:
-            _ = env.reset()
+    while True:
+        for time_step in range(TRIAL_LIFESPAN_IN_TIME_STEPS):
+            # through core.py::Wrapper.render,
+            # hand_env.py::HandEnv.render
+            # robot_env.py::RobotEnv.render
+            env.render()
+            state, reward, done, info = env.step(action)
+            action = action_from_state(
+                get_lrms(lrmss, time_step),
+                state,
+                time_step)
+            if done:
+                _ = env.reset()
+        preference = collect_preference()
+        if preference == 'a' or preference == 'l':
+            lrmss = evolved_lrmss(LEFT, lrmss, sigma)
+        elif preference == 'b' or preference == 'r':
+            lrmss = evolved_lrmss(RIGT, lrmss, sigma)
+        elif preference == 'q':
+            break
+        else:
+            print('preference must be a, l, b, r, q')
+        sigma *= LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER
+
     env.close()
