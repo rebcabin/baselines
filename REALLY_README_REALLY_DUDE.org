@@ -1477,9 +1477,6 @@ Run Scheme Code
 
 #+end_src
 
-#+RESULTS: scheme-sample
-: #tfoo
-
 
 #+begin_src python :var from_scheme=scheme-sample :results output
 print(f"scheme says: {from_scheme}")
