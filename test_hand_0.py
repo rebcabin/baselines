@@ -1,8 +1,8 @@
 import gym
 import numpy as np
 import matplotlib.pyplot as plt
-import nengo
 import timeit
+import pytest
 
 env = gym.make("TwoHandsManipulateBlocks-v0")  # manipulate.py
 # env = gym.make("HandManipulateBlock-v0")
@@ -56,22 +56,6 @@ def lrv_from_lrm(mat):
     return result
 
 
-def deprecated_test_vec_from_mat():
-    mat = np.array([[1, 2, 3], [4, 5, 6]])
-    vec = np.reshape(mat, (6,))
-    temp0 = vec == np.array([1, 2, 3, 4, 5, 6])
-    result = np.all(temp0)
-    assert result
-
-
-def deprecated_test_mat_from_vec():
-    vec = np.array([1, 2, 3, 4, 5, 6])
-    mat = np.reshape(vec, (2, 3))
-    temp0 = mat == np.array([[1, 2, 3], [4, 5, 6]])
-    result = np.all(temp0)
-    assert result
-
-
 def sample_d_ball_method_1(d=LRV_DIM, n=10):
     """5,000 times slower than method 2, but generalizable to arbitrary
     ellipsoidal covariances."""
@@ -110,31 +94,13 @@ def sample_d_ball_method_2(d=LRV_DIM, n=10):
     return result
 
 
-def sample_d_ball_method_3(d=LRV_DIM, n=10):
-    """This method replaces radius with a distribution uniform in r^(1/d).
-    That's more risky and 15 percent slower when the number of dimensions
-    gets large (e.g., 1220, as in our case)."""
-    result = nengo.dists.get_samples(
-        nengo.dists.UniformHypersphere(surface=False), n=n, d=d)
-    return result
-
-
-def sample_d_ball_method_4(d=LRV_DIM, n=10):
-    """This is the 'hat-box' method that simply throws away two coordinates,
-    exploiting Archimedes' hat-box theorem of 400 BC or thereabouts. This
-    uses the nengo library and is a little slower than method two. """
-    temp = nengo.dists.get_samples(
-        nengo.dists.UniformHypersphere(surface=True), n=n, d=d + 2)
-    result = temp[:, 2:]
-    return result
-
-
 SAMPLE_D_BALL_METHODS = [None,
-                         sample_d_ball_method_1, sample_d_ball_method_2,
-                         sample_d_ball_method_3, sample_d_ball_method_4]
+                         sample_d_ball_method_1,
+                         sample_d_ball_method_2]
 
 
-def deprecated_test_plot_spherically_uniform_lrvs(method=2):
+@pytest.mark.skip(reason="unskip if you want to see distribution")
+def test_plot_spherically_uniform_lrvs(method=2):
     """Visually shows that lrvs drawn from the methods above are uniform. Not
     as persuasive as a chi-square test, but good enough for engineering."""
     n = 10000
@@ -148,8 +114,9 @@ def deprecated_test_plot_spherically_uniform_lrvs(method=2):
     assert True
 
 
-def deprecated_test_lrv_gen_speeds():
-    """Shows that method2 is the fastest. Reactivate if you want to verify."""
+@pytest.mark.skip(reason="unskip if you want to see speeds")
+def test_lrv_gen_speeds():
+    """Shows that method2 is fastest. Reactivate if you want to verify."""
     a_dict = {}
     for i in range(1, len(SAMPLE_D_BALL_METHODS)):
         a_dict[i] = timeit.timeit(SAMPLE_D_BALL_METHODS[i], number=1)
@@ -160,14 +127,15 @@ def new_zero_lrm():
     return np.zeros(LRM_SHAPE)
 
 
-def new_uniformly_random_lrv():
+def new_uniformly_random_unit_radius_at_origin_lrv():
     result = sample_d_ball_method_2(d=LRV_DIM, n=1)
     return result
 
 
-def new_uniformly_random_lrm(sigma=1.0):
-    temp0 = new_uniformly_random_lrv()
+def new_uniformly_random_lrm_at_origin(sigma=1.0):
+    temp0 = new_uniformly_random_unit_radius_at_origin_lrv()
     temp1 = temp0[0]
+    # premature optimization (violation of code-review guideline number 40):
     if sigma != 1.0:
         temp2 = temp1 * sigma
     else:
@@ -176,25 +144,37 @@ def new_uniformly_random_lrm(sigma=1.0):
     return result
 
 
-LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 2.0
-LRM_SHRINKING_SIGMA = 1.0
-LRM_SHRINKING_FACTOR_HYPERPARAMETER = 0.992
+def new_normally_distributed_lrm(center, sigma):
+    assert center.shape == LRM_SHAPE
+    temp0 = np.random.randn(ONE_HAND_ACTION_DIM, ONE_SIDE_STATE_DIM)
+    assert temp0.shape == LRM_SHAPE
+    result = sigma * temp0 + center
+    return result
 
 
-def lrm_from_states_and_time_step(left_side, rigt_side, time_step):
+def action_from_states_and_time_step(
+        left_lrm,
+        rigt_lrm,
+        left_side,
+        rigt_side,
+        time_step):
     _ignore_for_now = time_step
-    left_lrm = new_uniformly_random_lrm(1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
-    rigt_lrm = new_uniformly_random_lrm(1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
     left_action = np.dot(left_lrm, left_side)
     rigt_action = np.dot(rigt_lrm, rigt_side)
     action = np.concatenate([left_action, rigt_action])
     return action
 
 
+LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 2.0
+LRM_SHRINKING_SIGMA = 1.0
+LRM_SHRINKING_FACTOR_HYPERPARAMETER = 0.992
+
+
 def test_hands():
     sigma = 1.0
+    # Start with a random action from mujoco, just so we can get
     action = env.action_space.sample()  # your agent here
-    temp = new_uniformly_random_lrm(1.0)
+    observation = env.get_state()
     for time_step in range(250):
         # through core.py::Wrapper.render,
         # hand_env.py::HandEnv.render
@@ -205,7 +185,20 @@ def test_hands():
         inspect_me_in_debugger = env.observation_space
         left_side = observation['left_side']
         rigt_side = observation['rigt_side']
-        action = lrm_from_states_and_time_step(left_side, rigt_side, time_step)
+        _ignore_for_now = new_normally_distributed_lrm(
+            center=new_uniformly_random_lrm_at_origin(1.0),
+            sigma=1.0
+        )
+        left_lrm = new_uniformly_random_lrm_at_origin(
+            1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
+        rigt_lrm = new_uniformly_random_lrm_at_origin(
+            1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
+        action = action_from_states_and_time_step(
+            left_lrm,
+            rigt_lrm,
+            left_side,
+            rigt_side,
+            time_step)
         if done:
             _ = env.reset()
     env.close()
