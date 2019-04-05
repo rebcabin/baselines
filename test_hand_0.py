@@ -100,7 +100,7 @@ def sample_d_ball_method_1(d=LRV_DIM, n=10):
 
 
 def sample_d_ball_method_2(d=LRV_DIM, n=10):
-    """This is a direct implementation of the 'hat-box' method that simply throws
+    """Direct implementation of the 'hat-box' method that just throws
     away two coordinates, exploiting Archimedes' hat-box theorem of 400 BC or
     thereabouts. This version doesn't use the 'nengo' library. It's a tiny bit
     faster than method 4."""
@@ -129,7 +129,7 @@ def sample_d_ball_method_4(d=LRV_DIM, n=10):
     return result
 
 
-sample_d_ball_methods = [None,
+SAMPLE_D_BALL_METHODS = [None,
                          sample_d_ball_method_1, sample_d_ball_method_2,
                          sample_d_ball_method_3, sample_d_ball_method_4]
 
@@ -139,7 +139,7 @@ def deprecated_test_plot_spherically_uniform_lrvs(method=2):
     as persuasive as a chi-square test, but good enough for engineering."""
     n = 10000
     d = LRV_DIM
-    points = sample_d_ball_methods[method](d=d, n=n)
+    points = SAMPLE_D_BALL_METHODS[method](d=d, n=n)
     assert points.shape == (n, d)
     radii = np.linalg.norm(points, axis=1, keepdims=True)
     radius_powers = radii ** d
@@ -151,8 +151,8 @@ def deprecated_test_plot_spherically_uniform_lrvs(method=2):
 def deprecated_test_lrv_gen_speeds():
     """Shows that method2 is the fastest. Reactivate if you want to verify."""
     a_dict = {}
-    for i in range(1, len(sample_d_ball_methods)):
-        a_dict[i] = timeit.timeit(sample_d_ball_methods[i], number=1)
+    for i in range(1, len(SAMPLE_D_BALL_METHODS)):
+        a_dict[i] = timeit.timeit(SAMPLE_D_BALL_METHODS[i], number=1)
     print(a_dict)
 
 
@@ -160,9 +160,42 @@ def new_zero_lrm():
     return np.zeros(LRM_SHAPE)
 
 
+def new_uniformly_random_lrv():
+    result = sample_d_ball_method_2(d=LRV_DIM, n=1)
+    return result
+
+
+def new_uniformly_random_lrm(sigma=1.0):
+    temp0 = new_uniformly_random_lrv()
+    temp1 = temp0[0]
+    if sigma != 1.0:
+        temp2 = temp1 * sigma
+    else:
+        temp2 = temp1
+    result = lrm_from_lrv(temp2)
+    return result
+
+
+LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 2.0
+LRM_SHRINKING_SIGMA = 1.0
+LRM_SHRINKING_FACTOR_HYPERPARAMETER = 0.992
+
+
+def lrm_from_states_and_time_step(left_side, rigt_side, time_step):
+    _ignore_for_now = time_step
+    left_lrm = new_uniformly_random_lrm(1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
+    rigt_lrm = new_uniformly_random_lrm(1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
+    left_action = np.dot(left_lrm, left_side)
+    rigt_action = np.dot(rigt_lrm, rigt_side)
+    action = np.concatenate([left_action, rigt_action])
+    return action
+
+
 def test_hands():
+    sigma = 1.0
     action = env.action_space.sample()  # your agent here
-    for _ in range(25):
+    temp = new_uniformly_random_lrm(1.0)
+    for time_step in range(250):
         # through core.py::Wrapper.render,
         # hand_env.py::HandEnv.render
         # robot_env.py::RobotEnv.render
@@ -172,10 +205,7 @@ def test_hands():
         inspect_me_in_debugger = env.observation_space
         left_side = observation['left_side']
         rigt_side = observation['rigt_side']
-        zero_lrm = new_zero_lrm()
-        left_action = np.dot(zero_lrm, left_side)
-        rigt_action = np.dot(zero_lrm, rigt_side)
-        action = np.concatenate([left_action, rigt_action])
+        action = lrm_from_states_and_time_step(left_side, rigt_side, time_step)
         if done:
             _ = env.reset()
     env.close()

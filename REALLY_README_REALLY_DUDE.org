@@ -1486,10 +1486,6 @@ print(f"scheme says: {from_scheme}")
 print(f"python says 'bar'")
 #+end_src
 
-#+RESULTS:
-: scheme says: #tfoo
-: python says 'bar'
-
 * Sandbox
 
 1 Aliquam erat volutpat. Nunc eleifend leo vitae magna. In id erat non orci
