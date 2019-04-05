@@ -132,7 +132,7 @@ def new_uniformly_random_unit_radius_at_origin_lrv():
     return result
 
 
-def new_uniformly_random_lrm_at_origin(sigma=1.0):
+def new_uniform_lrm_at_origin(sigma=1.0):
     temp0 = new_uniformly_random_unit_radius_at_origin_lrv()
     temp1 = temp0[0]
     # premature optimization (violation of code-review guideline number 40):
@@ -155,19 +155,34 @@ def new_normally_distributed_lrm(center, sigma):
 LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 1.5
 LRM_SHRINKING_SIGMA = 1.0
 LRM_SHRINKING_FACTOR_HYPERPARAMETER = 0.992
+LEFT = 0
+RIGT = 1
+LRMS_LIFESPAN_IN_TIME_STEPS_HYPERPARAMETER = 10
+TRIAL_LIFESPAN_IN_TIME_STEPS = 250
 
 
-def action_from_state(state, t):
+def starting_lrms(sigma):
+    return [new_uniform_lrm_at_origin(sigma),
+            new_uniform_lrm_at_origin(sigma)]
+
+
+def starting_lrms_sequence(sigma):
+    sequence_length = TRIAL_LIFESPAN_IN_TIME_STEPS // \
+                      LRMS_LIFESPAN_IN_TIME_STEPS_HYPERPARAMETER
+    result = [starting_lrms(sigma) for _ in range(sequence_length)]
+    return result
+
+
+def get_lrms(sequence, time_step):
+    result = sequence[time_step // LRMS_LIFESPAN_IN_TIME_STEPS_HYPERPARAMETER]
+    return result
+
+
+def action_from_state(lrms, state, t):
     left_side = state['left_side']
     rigt_side = state['rigt_side']
-    _ignore_for_now = new_normally_distributed_lrm(
-        center=new_uniformly_random_lrm_at_origin(1.0),
-        sigma=1.0
-    )
-    left_lrm = new_uniformly_random_lrm_at_origin(
-        1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
-    rigt_lrm = new_uniformly_random_lrm_at_origin(
-        1.0) * LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER
+    left_lrm = lrms[LEFT]
+    rigt_lrm = lrms[RIGT]
     _ignore_for_now = t
     left_action = np.dot(left_lrm, left_side)
     rigt_action = np.dot(rigt_lrm, rigt_side)
@@ -179,15 +194,18 @@ def test_hands():
     sigma = 1.0
     # Start with a random action from mujoco, just so we can get
     # action = env.action_space.sample()  # your agent here
-    action = action_from_state(env.get_state(), t=-1)
-    for time_step in range(250):
+    lrmss = starting_lrms_sequence(sigma)
+    action = action_from_state(lrmss[0], env.get_state(), t=-1)
+    for time_step in range(TRIAL_LIFESPAN_IN_TIME_STEPS):
         # through core.py::Wrapper.render,
         # hand_env.py::HandEnv.render
         # robot_env.py::RobotEnv.render
         env.render()
-        # (the above takes random actions)
-        observation, reward, done, info = env.step(action)
-        action = action_from_state(observation, time_step)
+        state, reward, done, info = env.step(action)
+        action = action_from_state(
+            get_lrms(lrmss, time_step),
+            state,
+            time_step)
         if done:
             _ = env.reset()
     env.close()
