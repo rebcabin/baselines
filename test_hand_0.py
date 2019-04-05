@@ -72,131 +72,104 @@ def test_mat_from_vec():
     assert result
 
 
-def new_spherically_uniform_LRV(sigma_0):
-    dim = LRV_DIM + 2
-    mu = np.zeros(dim, dtype=np.float32)
+def sample_d_ball_method_1(d=LRV_DIM, n=10):
+    """5,000 times slower than method 2, but generalizable to arbitrary
+    ellipsoidal covariances."""
+    mu = np.zeros(d, dtype=np.float32)
+
     # Sample multinormal in N+2 dims, then throw away any two dims.
     # the result will be uniform in N dims (see Robotics tech report
     # 18).
 
     # Even though shape checks out, np.random doesn't like the sparse matrix.
     # https://stackoverflow.com/questions/55503057/. My attempt at frugality
-    # fails
-    # cov = sigma_0 * sparse.identity(dim, dtype=np.float32)
-    cov = sigma_0 * np.identity(dim, dtype=np.float32)
-    assert (dim, dim) == cov.shape
-    temp0 = np.random.multivariate_normal(mu, cov)
-    # intentionally raise div-by-zero if denominator *is* zero-vector
-    temp1 = temp0 / np.linalg.norm(temp0)
-    result = temp1[2:]
+    # fails:
+
+    # cov = sparse.identity(dim, dtype=np.float32)
+
+    cov = np.identity(d, dtype=np.float32)
+    assert (d, d) == cov.shape
+    result = []
+    for _ in range(n):
+        temp0 = np.random.multivariate_normal(mu, cov)
+        # intentionally raise div-by-zero if denominator *is* zero-vector
+        temp2 = np.linalg.norm(temp0)
+        temp1 = temp0 / temp2
+        result.append(temp1[2:])
     return result
 
 
-def test_new_spherically_uniform_LRV():
-    temp0 = new_spherically_uniform_LRV(1.0)
-    assert temp0.shape == LRV_SHAPE
-
-
-def sample_d_ball_method_1(n_points):
-    sigma = 1.0
-    index1 = np.random.randint(0, LRV_DIM + 2)
-    index2 = np.random.randint(0, LRV_DIM + 2)
-    while index1 == index2:
-        index2 = np.random.randint(0, LRV_DIM + 2)
-    temp = [(p[index1], p[index2])
-            for p in [new_spherically_uniform_LRV(sigma)
-                      for _ in range(n_points)]]
-    points = [p / np.linalg.norm(p) for p in temp][2:]
-    return points
-
-
-def sample_d_ball_method_2(n_points):
-    sigma = 1.0
-    index1 = np.random.randint(0, LRV_DIM + 2)
-    index2 = np.random.randint(0, LRV_DIM + 2)
-    while index1 == index2:
-        index2 = np.random.randint(0, LRV_DIM + 2)
-    temp = []
-    for _ in range(n_points):
-        p = new_spherically_uniform_LRV(sigma)
-        temp.append((p[index1], p[index2]))
-    points = [p / np.linalg.norm(p) for p in temp][2:]
-    return points
-
-
-# prove that method3 is fastest
+def sample_d_ball_method_2(d=LRV_DIM, n=10):
+    """This is a direct implementation of the 'hat-box' method that simply throws
+    away two coordinates, exploiting Archimedes' hat-box theorem of 400 BC or
+    thereabouts. This version doesn't use the 'nengo' library. It's a tiny bit
+    faster than method 4."""
+    temp0 = np.random.randn(n, d + 2)
+    temp1 = temp0 / np.linalg.norm(temp0, axis=1, keepdims=True)
+    result = temp1[:, 2:]
+    return result
 
 
 def sample_d_ball_method_3(d=LRV_DIM, n=10):
+    """This method replaces radius with a distribution uniform in r^(1/d).
+    That's more risky and 15 percent slower when the number of dimensions
+    gets large (e.g., 1220, as in our case)."""
     result = nengo.dists.get_samples(
         nengo.dists.UniformHypersphere(surface=False), n=n, d=d)
     return result
 
 
 def sample_d_ball_method_4(d=LRV_DIM, n=10):
+    """This is the 'hat-box' method that simply throws away two coordinates,
+    exploiting Archimedes' hat-box theorem of 400 BC or thereabouts. This
+    uses the nengo library and is a little slower than method two. """
     temp = nengo.dists.get_samples(
         nengo.dists.UniformHypersphere(surface=True), n=n, d=d + 2)
     result = temp[:, 2:]
     return result
 
 
-# print(timeit.timeit("sample_d_ball_method_1(10)",
-#                     setup="from test_hand_0 import sample_d_ball_method_1",
-#                     number=1))
-#
-# print(timeit.timeit("sample_d_ball_method_2(10)",
-#                     setup="from test_hand_0  import sample_d_ball_method_2",
-#                     number=1))
-#
-print(timeit.timeit("sample_d_ball_method_3(d=10)",
-                    setup="from test_hand_0  import sample_d_ball_method_3",
-                    number=1))
+sample_d_ball_methods = [None,
+                         sample_d_ball_method_1, sample_d_ball_method_2,
+                         sample_d_ball_method_3, sample_d_ball_method_4]
 
 
-def get_distinct_random_vector_indices(d=LRV_DIM):
-    index1 = np.random.randint(0, d)
-    index2 = np.random.randint(0, d)
-    while index1 == index2:
-        index2 = np.random.randint(0, d)
-    return index1, index2
-
-
-def test_plot_spherically_uniform_LRVs():
-    n_points = 1000
-    d = 1220
-    # sigma = 1.0
-    index1, index2 = get_distinct_random_vector_indices(d)
-    plottable_points = []
-    points = sample_d_ball_method_4(d=d, n=n_points)
-    assert points.shape == (n_points, d)
-    for i in range(n_points):
-        p = points[i]
-        plottable_points.append((p[index1], p[index2]))
-    fix, ax = plt.subplots()
-    ax.scatter(*np.transpose(plottable_points))
-    ax.set_aspect(1.0)
-    plt.show()
-    result = points
+def test_plot_spherically_uniform_lrvs(method=2):
+    n = 10000
+    d = LRV_DIM
+    points = sample_d_ball_methods[method](d=d, n=n)
+    assert points.shape == (n, d)
+    radii = np.linalg.norm(points, axis=1, keepdims=True)
+    radius_powers = radii ** d
+    plt.hist(radius_powers)
+    plt.show()  # press ctrl-w to close the window
     assert True
 
 
-def test_pytest_itself():
-    assert True
+def deprecated_test_lrv_gen_speeds():
+    """Shows that method2 is the fastest."""
+    a_dict = {}
+    for i in range(1, len(sample_d_ball_methods)):
+        a_dict[i] = timeit.timeit(sample_d_ball_methods[i], number=1)
+    print(a_dict)
+    # for i in range(len(sample_d_ball_methods)):
+    #     if i > 0:
+    #         print(timeit.timeit(sample_d_ball_methods[i], number=1))
 
 
-state_left = np.zeros([20, 61])
-state_rigt = np.zeros([20, 61])
-
-for _ in range(25):
-    # through core.py::Wrapper.render,
-    # hand_env.py::HandEnv.render
-    # robot_env.py::RobotEnv.render
-    env.render()
-    action = env.action_space.sample()  # your agent here
-    # (this takes random actions)
-    observation, reward, done, info = env.step(action)
-    inspect_me_in_debugger = env.observation_space
-    if done:
-        _ = env.reset()
-
-env.close()
+def test_hands():
+    global _
+    state_left = np.zeros([20, 61])
+    state_rigt = np.zeros([20, 61])
+    for _ in range(25):
+        # through core.py::Wrapper.render,
+        # hand_env.py::HandEnv.render
+        # robot_env.py::RobotEnv.render
+        env.render()
+        action = env.action_space.sample()  # your agent here
+        # (this takes random actions)
+        observation, reward, done, info = env.step(action)
+        inspect_me_in_debugger = env.observation_space
+        if done:
+            _ = env.reset()
+    env.close()
