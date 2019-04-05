@@ -56,7 +56,7 @@ def lrv_from_lrm(mat):
     return result
 
 
-def test_vec_from_mat():
+def deprecated_test_vec_from_mat():
     mat = np.array([[1, 2, 3], [4, 5, 6]])
     vec = np.reshape(mat, (6,))
     temp0 = vec == np.array([1, 2, 3, 4, 5, 6])
@@ -64,7 +64,7 @@ def test_vec_from_mat():
     assert result
 
 
-def test_mat_from_vec():
+def deprecated_test_mat_from_vec():
     vec = np.array([1, 2, 3, 4, 5, 6])
     mat = np.reshape(vec, (2, 3))
     temp0 = mat == np.array([[1, 2, 3], [4, 5, 6]])
@@ -134,7 +134,9 @@ sample_d_ball_methods = [None,
                          sample_d_ball_method_3, sample_d_ball_method_4]
 
 
-def test_plot_spherically_uniform_lrvs(method=2):
+def deprecated_test_plot_spherically_uniform_lrvs(method=2):
+    """Visually shows that lrvs drawn from the methods above are uniform. Not
+    as persuasive as a chi-square test, but good enough for engineering."""
     n = 10000
     d = LRV_DIM
     points = sample_d_ball_methods[method](d=d, n=n)
@@ -147,29 +149,33 @@ def test_plot_spherically_uniform_lrvs(method=2):
 
 
 def deprecated_test_lrv_gen_speeds():
-    """Shows that method2 is the fastest."""
+    """Shows that method2 is the fastest. Reactivate if you want to verify."""
     a_dict = {}
     for i in range(1, len(sample_d_ball_methods)):
         a_dict[i] = timeit.timeit(sample_d_ball_methods[i], number=1)
     print(a_dict)
-    # for i in range(len(sample_d_ball_methods)):
-    #     if i > 0:
-    #         print(timeit.timeit(sample_d_ball_methods[i], number=1))
+
+
+def new_zero_lrm():
+    return np.zeros(LRM_SHAPE)
 
 
 def test_hands():
-    global _
-    state_left = np.zeros([20, 61])
-    state_rigt = np.zeros([20, 61])
+    action = env.action_space.sample()  # your agent here
     for _ in range(25):
         # through core.py::Wrapper.render,
         # hand_env.py::HandEnv.render
         # robot_env.py::RobotEnv.render
         env.render()
-        action = env.action_space.sample()  # your agent here
-        # (this takes random actions)
+        # (the above takes random actions)
         observation, reward, done, info = env.step(action)
         inspect_me_in_debugger = env.observation_space
+        left_side = observation['left_side']
+        rigt_side = observation['rigt_side']
+        zero_lrm = new_zero_lrm()
+        left_action = np.dot(zero_lrm, left_side)
+        rigt_action = np.dot(zero_lrm, rigt_side)
+        action = np.concatenate([left_action, rigt_action])
         if done:
             _ = env.reset()
     env.close()
