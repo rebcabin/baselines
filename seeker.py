@@ -153,7 +153,7 @@ def g_analyze_seeker_with_max_experiment(expt):
             'std_dev_trials_per_success': std_dev_trials_per_success}
 
 
-# dim_11_experiments = [analyze_seeker_with_max_experiment(
+# dim_260_experiments = [analyze_seeker_with_max_experiment(
 #     seeker_with_max_experiment(
 #         dimensions=27,
 #         rollouts=100,
@@ -171,34 +171,34 @@ def expg(cd):
 
 
 with Pool(10) as p:
-    dim_11_experiments = p.map(
+    dim_260_experiments = p.map(
         expg,
-        list(np.linspace(0.9980, 0.9999, 10))
+        list(np.linspace(0.999, 0.9999, 10))
     )
 
 
-dim_11_experiments_df = pd.DataFrame(dim_11_experiments)
+dim_260_experiments_df = pd.DataFrame(dim_260_experiments)
 
 
-dim_11_experiments_df.to_csv("dim_11_vogelsong_df")
+dim_260_experiments_df.to_csv("dim_260_vogelsong_df")
 
 
-dim_11_experiments_df = pd.DataFrame.from_csv("dim_11_vogelsong_df")
+dim_260_experiments_df = pd.DataFrame.from_csv("dim_260_vogelsong_df")
 
 
 fig, ax = plt.subplots()
 ax.errorbar(
-    dim_11_experiments_df['covariance_decay'],
-    dim_11_experiments_df['average_trials_per_success'],
-    yerr=dim_11_experiments_df['std_dev_trials_per_success'],
+    dim_260_experiments_df['covariance_decay'],
+    dim_260_experiments_df['average_trials_per_success'],
+    yerr=dim_260_experiments_df['std_dev_trials_per_success'],
     label='average number of trials per success'
 )
-ax.plot(dim_11_experiments_df['covariance_decay'],
-        400 * dim_11_experiments_df['percentage_successful'],
-        label='percentage successful (times 2 for scale)')
+ax.plot(dim_260_experiments_df['covariance_decay'],
+        400 * dim_260_experiments_df['percentage_successful'],
+        label='percentage successful (scaled for visualization)')
 ax.set(xlabel="covariance decay",
        ylabel="average number of trials to succeed",
-       title="tradeoff between success percentage and number of trials\n11 dimension, 100 rollouts per data point")
+       title="tradeoff between success percentage and number of trials\n260 dimension, 100 rollouts per data point")
 ax.grid()
 ax.legend()
 plt.show()
