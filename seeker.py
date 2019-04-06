@@ -15,38 +15,16 @@ def sample_d_ball(d=2, n=300):
         nengo.dists.UniformHypersphere(surface=False), n=n, d=d)
 
 
-def plot_sampled_d_ball(d=2, n=300):
-    xys = nengo.dists.get_samples(
-        nengo.dists.UniformHypersphere(surface=False), n=n, d=d)
-    xsys = np.transpose(xys)
-    xs = xsys[0]
-    ys = xsys[1]
-    fig, ax = plt.subplots()
-    ax.scatter(xs, ys)
-    ax.set_aspect(1.0)
-    plt.show()
-
-
-# plot_sampled_d_ball(d=2, n=300)
-
-
 def get_target(dim):
-    #   The following uniformly samples the d-cube,
-    #   exponentially bigger than the d-ball. Avoid.
-    # seek_target  =
-    #    np.random.rand(1, dimensions) * 2 - 1  # -1 to 1 in all dims
-    # Instead, sample the d-ball:
     seek_target = sample_d_ball(d=dim, n=1)
-    # Check the sample.
-    assert seek_target[0].shape == (dim,)
-    for point in seek_target:
-        assert point[0] >= -1 and point[0] <= 1
+    # # Check the sample.
+    # assert seek_target[0].shape == (dim,)
+    # for point in seek_target:
+    #     assert point[0] >= -1 and point[0] <= 1
     return seek_target[0]
 
 
 def sample_a_b(dim, center, sigma, target):
-    # y1 = np.array(np.random.multivariate_normal(center, covariance))
-    # y2 = np.array(np.random.multivariate_normal(center, covariance))
     assert center.shape == (dim,)
     assert target.shape == (dim,)
 
@@ -59,9 +37,6 @@ def sample_a_b(dim, center, sigma, target):
     # Consult the oracle (ground truth).
     d1 = distance.euclidean(target, y1)
     d2 = distance.euclidean(target, y2)
-
-    # TODO: Check that the diagonal elements of the covariance
-    # are equal and that the off-diagonal elements are zero.
 
     yp = y1 if d1 < d2 else y2
     dp = min(d1, d2)  # This is the CHEATING port of the oracle.
@@ -166,24 +141,6 @@ def seeker_with_max_experiment(
     return result
 
 
-def analyze_seeker_with_max_experiment(expt):
-    result = ntup('Analysis',
-                  ['average_trials_per_success',
-                   'percentage_successful',
-                   'rollouts',
-                   'covariance_decay',
-                   'std_dev_trials_per_success'])
-    std_dev_trials_per_success = np.std(
-        [k[1] for k in zip(expt.success_flags,
-                           expt.convergestepss)
-              if k[0]])
-    return result(expt.mean_trials_per_success,
-                  expt.percentage_successful,
-                  expt.rollouts,
-                  expt.covariance_decay_per_trial,
-                  std_dev_trials_per_success)
-
-
 def g_analyze_seeker_with_max_experiment(expt):
     std_dev_trials_per_success = np.std(
         [k[1] for k in zip(expt.success_flags,
@@ -207,8 +164,9 @@ def g_analyze_seeker_with_max_experiment(expt):
 def expg(cd):
     return g_analyze_seeker_with_max_experiment(
         seeker_with_max_experiment(
-            dimensions=200,
-            rollouts=1000,
+            dimensions=260,
+            maxsamples=80000,
+            rollouts=100,
             covariance_decay=cd))
 
 
@@ -236,7 +194,7 @@ ax.errorbar(
     label='average number of trials per success'
 )
 ax.plot(dim_11_experiments_df['covariance_decay'],
-        2 * dim_11_experiments_df['percentage_successful'],
+        400 * dim_11_experiments_df['percentage_successful'],
         label='percentage successful (times 2 for scale)')
 ax.set(xlabel="covariance decay",
        ylabel="average number of trials to succeed",
