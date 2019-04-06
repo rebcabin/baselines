@@ -152,7 +152,7 @@ def new_normally_distributed_lrm(center, sigma):
     return result
 
 
-LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 1.5
+LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 1.25
 LRM_SHRINKING_SIGMA = 1.0
 LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER = 0.992
 LEFT = 0
@@ -164,9 +164,10 @@ LRMSS_LENGTH = TRIAL_LIFESPAN_IN_TIME_STEPS // \
 
 
 def starting_lrms(sigma):
-    return [new_uniform_lrm_at_origin(sigma) *
+    z = new_zero_lrm()
+    return [new_normally_distributed_lrm(z, sigma) *
             LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER,
-            new_uniform_lrm_at_origin(sigma) *
+            new_normally_distributed_lrm(z, sigma) *
             LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER]
 
 
@@ -208,7 +209,7 @@ def action_from_state(lrms, state, t):
 
 
 def collect_preference():
-    result = input('Express preference:')
+    result = input('Express preference [a, l, b, r, n, q]:')
     return result
 
 
@@ -232,12 +233,13 @@ def test_hands():
         preference = collect_preference()
         if preference == 'a' or preference == 'l':
             lrmss = evolved_lrmss(LEFT, lrmss, sigma)
+            sigma *= LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER
         elif preference == 'b' or preference == 'r':
             lrmss = evolved_lrmss(RIGT, lrmss, sigma)
+            sigma *= LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER
         elif preference == 'q':
             break
         else:
-            print('preference must be a, l, b, r, q')
-        sigma *= LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER
+            print('preference must be a, l, b, r, q, n')
 
     env.close()
