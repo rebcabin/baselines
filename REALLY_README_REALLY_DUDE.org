@@ -69,7 +69,7 @@ You can definitely do everything here using just plain-ol'-Emacs, though you
 will have to load some packages. If you're using plain-ol'-Emacs, figure that
 all out on your own; if you're using Spacemacs, almost all the packages are
 pre-installed. I won't say any more about it, because I don't want this to be a
-paper about Emacs.
+document about Emacs or Spacemacs.
 
 ** Interactively
 
@@ -77,9 +77,9 @@ Assuming you're visiting this =.org= file in Spacemacs, go to each code block,
 read it (you, as a human, read it, input it /via/ your eyeballs into your
 brain). Then type =C-c C-c= to /evaluate/ the block.
 
-Most of the code blocks contain just definitions and do not produce results;
-such block are marked =:results none=.  Some blocks produce results and Emacs
-puts the results into the file you're looking at right now.
+Most code blocks contain just definitions and do not produce results; such block
+are marked =:results none=. Some blocks produce results and Emacs puts the
+results as plain text into the file you're looking at right now.
 
 The first time through, evaluate the blocks in order of appearance so that you
 evaluate definition blocks before blocks that use the definitions. This builds
@@ -89,8 +89,7 @@ blocks and get the same results (the code is supposed to be /idempotent/ and
 
 If you do not get repeatable results, the code is either not idempotent or not
 commutative, or both. That's a bug, and here is how to diagnose it: quit the
-Inferior Lisp Process (switch to its buffer named something-=*repl*=.)
-
+Inferior Lisp or Python Process (switch to its buffer named something-=*repl*=.)
 Repeatedly: track down causes of non-repeatable behavior and fix them. Rarely,
 Spacemacs gets confused and you must quit it altogether and restart. Do that if
 your results persistently don't make sense.
@@ -98,7 +97,7 @@ your results persistently don't make sense.
 ** TODO Batch
 1. Tangle the embedded source out to external files (=C-c C-v t=)
 2. Open a terminal window and type =sbcl --script storeys.lisp= or =sbcl
-   --script test.lisp=.
+   --script test.lisp=, or Python, Scheme, C++, whatever language.
 
 ** Typesetting
 
@@ -125,49 +124,43 @@ Type =C-c C-c= in the following block:
   ; (slime)
 #+END_SRC
 
-
 * Control Shadow Hands with Dolphin
 
 ** Dimensions and Degrees of Freedom
 
 *** One Hand
 
-The following code gets the original, old environment to tell us the dimensions.
+The following code gets the original, old =gym= environment from =OpenAI= to
+tell us the dimensions.
 
-#+begin_src python :results export
+#+begin_src python :results export :exports both
   import gym
   import numpy as np
-  # env = gym.make("TwoHandsManipulateBlocks-v0")
   env = gym.make("HandManipulateBlock-v0")
   _= env.reset()
   action = env.action_space.sample() # your agent here
-  observation, reward, done, info = env.step(action)
-  result = list({"shape(observation)": np.shape(observation['observation']),
-                 "shape(achived goal)": np.shape(observation['achieved_goal']),
-                 "shape(desired goal)": np.shape(observation['desired_goal']),
-                 "shape(action)": np.shape(action)# ,
-                 # "done": done,
-                 # "info": info
-                 }.items())
+  obn, reward, done, info = env.step(action)
+  result = list({"shape(hand + cube state)": np.shape(obn['observation']),
+                 "shape(achived cube goal)": np.shape(obn['achieved_goal']),
+                 "shape(desired cube goal)": np.shape(obn['desired_goal']),
+                 "shape(action)": np.shape(action)}.items())
   return result
 #+end_src
 
-In the following paragraphs, we account for all the numbers in the table above.
+#+CAPTION:\label{tbl:shapes}Shapes of Prominent Quantities for Dolphin Hands
+#+RESULTS:
+| shape(hand + cube state) | (61) |
+| shape(achived cube goal) | (7)  |
+| shape(desired cube goal) | (7)  |
+| shape(action)            | (20) |
 
-**** Goals
-
-The =achieved_goal= and =desired_goal= are 7, concatenating an $(x, y, z)$
-3\Hyphdash*{}vector position and a 4\Hyphdash*{}component $(w_q,x_q,y_q,z_q)$
-quaternion. The quaternion is normalized, so the goals aren't
-\emph{mathematically} of seven dimensions, only six. However, the code keeps
-track of the seven parameters as if they were independent. Evidently, that
-practice is not a source of trouble.
+Account for all the numbers in the table above:
 
 **** Actions
 
-Action for one hand is a row vector of length twenty. These represent the twenty
-tendons available on the robot. The code clips actions to the interval
-$\interval{-1}{+1}$. \newline
+Action for one hand is a row vector of length twenty, the twenty tendons on the
+robot. The code clips each action component to the interval $\interval{-1}{+1}$.
+\newline
 
 **** Joints in Hand
 
@@ -180,61 +173,107 @@ There are twenty-four joints in each hand:
 6. five thumb joints, =THJ4= through =THJ0= (reverse order)
 
 The following symbols in the code build up the state:
-- twenty-four =robot_qpos=, generalized coordinates, in the order above
-- twenty-four =robot_qvel=, generalized velocities
 
-=qpos= appears to be a generic word in the code for a 7\=/vector (three
-Cartesian position coordinates concatenated to four components of a normalized
-quaternion \emph{versor}, in pos-quat order despite the name), but =qpos= is
-abused, in this case, to contain twenty-four generalized coordinates encoding
-joint configuration.
+- qpos :: a generic word for a
+          7\Hyphdash*{}vector (three Cartesian position coordinates concatenated
+          to four components of a normalized quaternion \emph{versor}, in
+          pos-quat order despite the name), but =qpos= is abused, in this case,
+          to contain twenty-four generalized coordinates encoding joint
+          configuration.
 
-Likewise, =qvel= appears to mean concatenation of velocity and angular velocity,
-in that order despite the name, but it's abused hear to contain twenty-four
-generalized velocities.
+- qvel :: concatenation of velocity and angular
+          velocity, in that order despite the name, but abused to
+          contain twenty-four generalized velocities.
 
 Total is forty-eight.
 
-**** Object == Cube
+**** Object (Cube)
 
-- object :: usually  means ``cube on the left.''
+- object :: usually means ``cube on the left;'' we retained the old name to
+            minimize disruption in the intricate XML files that specify the
+            models.
 
 - object_right ::  means ``cube on the right.''
 
-Each cube has thirteen dimensions:
+The code defines the following informal
+(non-machine-checked) types:
 
-1. seven elements for =object_qpos= the position and normalized quaternion (in
-   that order, despite the name); really only six degrees of freedom because of
-   normalization.
+- goal :: a flattened or \emph{raveled} 14-\Hyphdash*{}vector: seven components
+          of \emph{pose} for the left cube concatenated to seven components of
+          pose for the right cube.
 
-2. six elements for =object_qvel=, surmised to be $\{\dot{x}, \dot{y}, \dot{z},
-   \dot{\phi}, \dot{\theta}, \dot{\psi}\}$, where $\phi, \theta, \psi$ are
-   \emph{roll}, \emph{pitch}, and \emph{yaw}, respectively.
+- pose :: a flattened 7-\Hyphdash*{}vector: three components of position
+          concatenated to four components of normalized quaternion, which has
+          only three degrees of freedom.
+
+- pos :: three components of position, $(x, y, z)$
+
+- quat :: four components of normalized quaternion, sometimes spelled =qut= to
+          have the same number of letters as =pos= and enhance vertical
+          alignment of code.
+
+- qvel :: six components, surmised to be $(\dot{x}, \dot{y}, \dot{z},
+          \dot{\phi}, \dot{\theta}, \dot{\psi})$, where $\phi, \theta, \psi$
+          are \emph{roll}, \emph{pitch}, and \emph{yaw}, respectively.
 
 **** Total: Sixty-One Dimensions
 
 $\boxed{48 + 13 = 61}$ \newline
 
-*** Two Hands
+** Piecewise Linear Controllers
 
-\noindent The state of the left hand plus cube has a total of sixty-one
-elements. A linear regulator for one hand plus cube has $61$ columns and $20$
-rows, for $1,220$ elements. We may guess at a linear regulator by constructing a
-multivariate normal in $1,220$ dimensions and then reshaping.
+The objective of a *controller* is to orient the cube to a target. Generally, a
+controller takes in a state and a time and returns an action. In full
+generality, then, a controller or *agent* $\mathcal{A}$ for the hands takes in two,
+61\Hyphdash*{}dimensional states and a time, and returns a
+20-\Hyphdash*{}dimensional action vector:
 
-$\boxed{\textrm{dimensions of linear regulator for one hand and one cube} = 1,220}$
+\begin{equation}
+\mathcal{A}:\mathbb{R}^{123}\rightarrow\mathbb{R}^{20}
+\end{equation}
 
-*** Sequenced Linear Controllers
+The objective of the Dactyl-hands controller, however, is to convert the actual
+pose of a cube into actions that bring it closer to the goal pose. Thus, the
+inputs to the controller number only seven, not $123$.
 
-We will need one new linear-control matrix (LCM) every few steps, say every ten.
-In $1,000$ steps, we will need 100 LCMs, or $122,000$ numbers. This is an
-overestimate because the LCMs will probably vary slowly with time. It will
-likely take fewer judgments to learn $\mathrm{LCM}(t+1)$ than it took to learn
-$\mathrm{LCM}(t)$, perhaps many fewer.
+A /linear regulator/ is a special kind of controller that takes in a *residual*
+pose (7\Hyphdash*{}vector), that is, the difference between the desired pose and
+the actual pose, and outputs actions. The difference of the /pos/ part of a pose
+is just the vector difference of the Cartesian components. The difference of the
+/quat/ part is the quaternion product of one quaternion and the quaternion
+conjugate of the second quaternion, namely $q_1\star{}q_2^{\star}$. A linear
+regulator, $\mathcal{L}$, being linear, is just a linear-control matrix (*LCM*),
+a linear function of the following type:
+
+\begin{equation}
+\mathcal{L}:\mathbb{R}^{7}\rightarrow\mathbb{R}^{20}
+\end{equation}
+
+This matrix has $140$ numbers in it. By A/B preferences alone, Dolphin can learn
+a controller containing $140$ numbers in about $7,000$ trials:
+
+#+CAPTION:Trials versus covariance reduction for $140$ dimensions
+[[file:Seeker140.png]]
+
+The terms /trial/, /rollout/, /episode/, and /trajectory/ are synonyms until we
+learn otherwise.
+
+A /piecewise linear controller/ is a time-sequence of LCMs $\mathcal{L}_1,
+\mathcal{L}_2, \ldots$. We will need one new LCM, each containing $140$ numbers,
+every few steps, say every ten. In $250$ steps, we will need 25 LCMs, or $3,500$
+numbers. Therefore, the entire, piecewise linear controller for a trial of
+length $250$ steps has $3,500$ dimensions, taking $7,000^{10}$ trials. Without
+reduction of this number, learning by this method is not feasible.
+
+However, because the individual LCMs in a piecewise linear controller will
+likely vary smoothly and slowly (with respect to the natural frequencies of the
+mechanics of the hand and the cube) over time, the number of trials needed to
+learn them all will likely be much smaller. An experiment is under way to find
+out.
 
 ** Learn a Neural Network
 
-Alternatively, we can have Dolphin learn the Dactyl neural network directly.
+Alternatively, we can have Dolphin learn a Dactyl neural network directly.
 
 
 * Get the Hands Going
@@ -244,17 +283,17 @@ Alternatively, we can have Dolphin learn the Dactyl neural network directly.
 https://github.com/rebcabin/baselines
 #+end_example
 
-The instructions for setting up the Python environment are pretty good. Here is
-what I ended up with:
+The instructions for setting up the Python environment are pretty good.
+Alternatives include PyCharm and pipenv. I got them all to work. Here is
+what I ended up with following the instructions above:
 
 #+begin_example
 env PYTHONPATH=/usr/lib/tensorflow/lib/python3.6:$PYTHONPATH pytest \
     ./baselines/common/tests/test_serialization.py -k test_serialization
 #+end_example
 
-That test /FAILS/ [TODO]. The immediate goal, however, is to get the hands doing
-/something rather than nothing/. Obsess on the unit tests later. For now,
-we need to get mujoco, graphics, CUDA, Tensorflow going.
+That test /FAILS/ [TODO]. The immediate goal, however, is to get the hands going
+with mujoco, graphics, CUDA, and Tensorflow going.
 
 To get the hands going on Linux, you will need the following.
 
@@ -262,8 +301,8 @@ To get the hands going on Linux, you will need the following.
 
 If graphics don't work for you, you may have to do some things in this section.
 I broke graphics by doing =sudo apt install libglew-dev=. To fix it, I had to
-chase down =glfw=, which doesn't have an obvious name.
-This took time to figure out: you don't want to discover all this on your own.
+chase down =glfw=, which doesn't have an obvious name. This took time to figure
+out: you don't want to discover all this on your own.
 
 #+begin_example
 https://github.com/glfw/glfw/issues/808
@@ -288,13 +327,11 @@ Then /temporarily/ add the following line to =/etc/apt/sources.list= using
 deb http://ppa.launchpad.net/keithw/glfw3/ubuntu trusty main
 #+end_example
 
-and try again.
-
-
-Then comment out that line in =sources.list= because that =.deb= repo is not
-digitally signed and your automatic update software will stall on it. You may
-need to uncomment and recomment it later to reinstall =glfw=, however, so don't
-remove the line from the file; leave it as a reminder of what to install.
+\noindent and try again. Then comment out that line in =sources.list= because
+that =.deb= repo is not digitally signed and your automatic update software will
+stall on it. You may need to uncomment and recomment it later to reinstall
+=glfw=, however, so don't remove the line from the file; leave it as a reminder
+of what to install.
 
 
 ** Mujoco
@@ -316,7 +353,8 @@ https://docs.nvidia.com/deeplearning/sdk/cudnn-install/
   index.html#ubuntu-network-installation
 #+end_example
 
-Add these lines to your =.bashrc= or =.zshrc=
+Add these lines to your =.zshrc=, or similar ones (in a different syntax) to
+=.bashrc=
 
 #+begin_example
 export PATH=/usr/local/cuda-9.0/bin\
@@ -332,13 +370,10 @@ export PYTHONPATH=/usr/lib/tensorflow/lib/python3.6\
 export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libGLEW.so
 #+end_example
 
-Add them to PyCharm under =Run->Edit Configuration->Environment Variables=.
+Add them to PyCharm under =Run->Edit Configuration->Environment Variables= or
+use the =EnvFile= plugin for PyCharm.
 
-Add some, if not all, to the section on environment variables in the
-=Run->EditConfiguration= dialog box of PyCharm.
-
-Use PyCharm. It's worth the trouble to set it up because its debugger is ---
-worth the trouble.
+Use PyCharm. Its debugger integration is worth the trouble.
 
 ** Python
 
@@ -349,8 +384,8 @@ following along with me):
 python --version
 #+end_src
 
-Make a nice virtual environment. I called mine ``shadow-hand-venv''. Make sure
-it has at least this stuff:
+Make a virtual environment. I called mine ``shadow-hand-venv''. Make sure it has
+at least this stuff:
 
 #+begin_example
 pip freeze
@@ -421,13 +456,16 @@ Activate your environment:
 source ./shadow-hand-venv/bin/activate
 #+end_example
 
-Make sure again that Python 3.6 is working with a nice f-string example
+Make sure again that Python 3.6 is working with an f-string example
 (f-strings don't work in Python 3.5)
 
-#+BEGIN_SRC python
+#+BEGIN_SRC python :exports both
 import time
 return f"Hello, today's date is {time.ctime()}"
 #+END_SRC
+
+#+RESULTS:
+: Hello, today's date is Sun Apr  7 12:22:56 2019
 
 Run Emacs in the background from a terminal where that environment is active. If
 you start Emacs without the environment, you won't be able to run the Python
@@ -439,7 +477,7 @@ $ nohup ~/usr/bin/emacs-26.1 &> /dev/null &
 
 ** See Hands Run; Run, Hands, Run!
 
-If you use a =:session= header in the following, mujoco will hang.
+If you use a =:session= header in the following, mujoco will hang, so don't.
 
 Give it a go, and best of luck:
 
@@ -459,16 +497,8 @@ Give it a go, and best of luck:
   env.close()
 #+end_src
 
-** Action and State Shapes
-
-#+begin_src python
-  import gym
-  import numpy as np
-  env = gym.make("TwoHandsManipulateBlocks-v0")
-  _= env.reset()
-  return list({"action space": env.action_space,
-               "observation space": env.observation_space}.items())
-#+end_src
+#+RESULTS:
+: None
 
 ** User Interface
 
@@ -499,35 +529,7 @@ Here is a comment recording my problems with it.
           self._get_viewer(mode).render(width, height)
 #+end_src
 
-*** Unit Tests; Commit =2df76ec=
-
-This is a record of how to run unit tests. PLEASE do this every time you
-check code in.
-
-
-#+begin_example
-$ pushd ~/Documents/baselines
-$ . ./shadow-hand-venv/bin/activate
-(shadow-hand-venv)
-$ pytest shadow-hand-venv/lib/python3.6/site-packages/gym/
-==== 224 passed, 1 skipped, 97 warnings in 21.89 seconds =====
-#+end_example
-
-** Sandbox
-
-#+begin_src python
-return list(map(lambda _: [_], [1, 2, 3]))
-#+end_src
-
-#+begin_src python
-return [1, 2, 3]
-#+end_src
-
-#+begin_src python
-return [[1], [2], [3]]
-#+end_src
-
-*** Transcript of Some Action Plans
+* COMMENT Transcript of Some Action Plans
 
 - [March 28, 2019, 7:11 AM] Beckman, Brian: important: you are familiar with piecewise linear approximations (PLA) of a function.
 - [March 28, 2019, 7:12 AM] Beckman, Brian: We may need multiple 61x20 matrices, one every 10 or 20 time steps.
@@ -1434,8 +1436,8 @@ return len(gym.envs.registry.all())
 833 ZaxxonNoFrameskip-v4
 #+end_example
 
-* How to
-Run Scheme Code
+
+* COMMENT How to Run Scheme Code
 
 ... and how to pass its results to Python.
 
@@ -1482,9 +1484,3 @@ Run Scheme Code
 print(f"scheme says: {from_scheme}")
 print(f"python says 'bar'")
 #+end_src
-
-* Sandbox
-
-1 Aliquam erat volutpat. Nunc eleifend leo vitae magna. In id erat non orci
-commodo lobortis. Proin neque massa, cursus ut, gravida ut, lobortis eget,
-lacus. Sed diam.

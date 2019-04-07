@@ -142,6 +142,8 @@ def seeker_with_max_experiment(
 
 
 def g_analyze_seeker_with_max_experiment(expt):
+    """Compatible with multiprocessing (can't use named tuples because they're
+    not pickle-able."""
     std_dev_trials_per_success = np.std(
         [k[1] for k in zip(expt.success_flags,
                            expt.convergestepss)
@@ -153,7 +155,7 @@ def g_analyze_seeker_with_max_experiment(expt):
             'std_dev_trials_per_success': std_dev_trials_per_success}
 
 
-# dim_260_experiments = [analyze_seeker_with_max_experiment(
+# dim_140_experiments = [analyze_seeker_with_max_experiment(
 #     seeker_with_max_experiment(
 #         dimensions=27,
 #         rollouts=100,
@@ -161,7 +163,9 @@ def g_analyze_seeker_with_max_experiment(expt):
 #     )) for cd in np.linspace(0.990, 0.999, 10)]
 
 
-def expg(cd):
+def g_expt_260(cd):
+    """Compatible with multiprocessing (can't use named tuples because they're
+    not pickle-able."""
     return g_analyze_seeker_with_max_experiment(
         seeker_with_max_experiment(
             dimensions=260,
@@ -170,35 +174,46 @@ def expg(cd):
             covariance_decay=cd))
 
 
+def g_expt_140(cd):
+    """Compatible with multiprocessing (can't use named tuples because they're
+    not pickle-able."""
+    return g_analyze_seeker_with_max_experiment(
+        seeker_with_max_experiment(
+            dimensions=140,
+            maxsamples=60000,
+            rollouts=100,
+            covariance_decay=cd))
+
+
 with Pool(10) as p:
-    dim_260_experiments = p.map(
-        expg,
-        list(np.linspace(0.999, 0.9999, 10))
+    dim_140_experiments = p.map(
+        g_expt_140,
+        list(np.linspace(0.99825, 0.999, 10))
     )
 
 
-dim_260_experiments_df = pd.DataFrame(dim_260_experiments)
+dim_140_experiments_df = pd.DataFrame(dim_140_experiments)
 
 
-dim_260_experiments_df.to_csv("dim_260_vogelsong_df")
+dim_140_experiments_df.to_csv("dim_140_vogelsong_df")
 
 
-dim_260_experiments_df = pd.DataFrame.from_csv("dim_260_vogelsong_df")
+dim_140_experiments_df = pd.DataFrame.from_csv("dim_140_vogelsong_df")
 
 
 fig, ax = plt.subplots()
 ax.errorbar(
-    dim_260_experiments_df['covariance_decay'],
-    dim_260_experiments_df['average_trials_per_success'],
-    yerr=dim_260_experiments_df['std_dev_trials_per_success'],
+    dim_140_experiments_df['covariance_decay'],
+    dim_140_experiments_df['average_trials_per_success'],
+    yerr=dim_140_experiments_df['std_dev_trials_per_success'],
     label='average number of trials per success'
 )
-ax.plot(dim_260_experiments_df['covariance_decay'],
-        400 * dim_260_experiments_df['percentage_successful'],
+ax.plot(dim_140_experiments_df['covariance_decay'],
+        50 * dim_140_experiments_df['percentage_successful'],
         label='percentage successful (scaled for visualization)')
 ax.set(xlabel="covariance decay",
        ylabel="average number of trials to succeed",
-       title="tradeoff between success percentage and number of trials\n260 dimension, 100 rollouts per data point")
+       title="tradeoff between success percentage and number of trials\n140 dimension, 100 rollouts per data point")
 ax.grid()
 ax.legend()
 plt.show()
