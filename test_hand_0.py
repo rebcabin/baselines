@@ -149,8 +149,16 @@ def action_from_state(lrms, state, t):
     return action
 
 
-def collect_preference():
-    result = input('Express preference [a, l, b, r, n, q]:')
+def collect_preference(state):
+    # TODO: violation code-review guideline 12: code commented-out!
+    # result = input('Express preference [a, l, b, r, n, q]:')
+    # autograder
+    a = state['left_loss']
+    b = state['rigt_loss']
+
+    result = 'a'
+    if b < a:
+        result = 'b'
     return result
 
 
@@ -158,6 +166,7 @@ def test_hands():
     sigma = 1.0
     lrmss = starting_lrmss(sigma)
     action = action_from_state(lrmss[0], env.get_state(), t=-1)
+    state = None
     while True:
         for time_step in range(TRIAL_LIFESPAN_IN_TIME_STEPS):
             # through core.py::Wrapper.render,
@@ -171,7 +180,7 @@ def test_hands():
                 time_step)
             if done:
                 _ = env.reset()
-        preference = collect_preference()
+        preference = collect_preference(state)
         if preference == 'a' or preference == 'l':
             lrmss = evolved_lrmss(LEFT, lrmss, sigma)
             sigma *= LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER
