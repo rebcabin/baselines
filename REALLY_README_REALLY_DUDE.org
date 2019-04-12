@@ -529,6 +529,14 @@ Here is a comment recording my problems with it.
           self._get_viewer(mode).render(width, height)
 #+end_src
 
+*** Commands
+
+*** Telemetry and Logging
+
+*** Video
+
+*** Checkpoint / Restart
+
 * COMMENT Transcript of Some Action Plans
 
 - [March 28, 2019, 7:11 AM] Beckman, Brian: important: you are familiar with piecewise linear approximations (PLA) of a function.
@@ -1479,8 +1487,14 @@ return len(gym.envs.registry.all())
 
 #+end_src
 
+#+RESULTS: scheme-sample
+: #tfoo
+
 
 #+begin_src python :var from_scheme=scheme-sample :results output
 print(f"scheme says: {from_scheme}")
 print(f"python says 'bar'")
 #+end_src
+
+
+* COMMENT Sandbox

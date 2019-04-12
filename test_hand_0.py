@@ -34,7 +34,7 @@ _ = env.reset()
 
 
 # Many functions assign a value to a variable named "result" and then
-# immediately return result. The convention makes it easy to inspect the
+# immediately return "result." The convention makes it easy to inspect the
 # result in the debugger by setting a breakpoint on "return result."
 
 
@@ -152,6 +152,7 @@ def action_from_state(lrms, state, t):
 def collect_preference(state):
     # TODO: violation code-review guideline 12: code commented-out!
     # result = input('Express preference [a, l, b, r, n, q]:')
+
     # autograder
     a = state['left_loss']
     b = state['rigt_loss']
@@ -160,6 +161,38 @@ def collect_preference(state):
     if b < a:
         result = 'b'
     return result
+
+
+class GameState(object):
+    """TODO: UNDONE"""
+    def run_hands():
+        pass
+
+    def record_output(self, c):
+
+        output_dict = \
+            {'y_chosen': list(self.yp),  # np.ndarray not json-serializable.
+             'time_stamp':
+             f"{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}",
+             'left_guess': list(self.ys[0]),
+             'right_guess': list(self.ys[1]),
+             'disturbance_amplitude': self.amplitude,
+             'repeatable_disturbance': self.repeatable_q,
+             'truth': EXACT_LQR_CART_POLE_GAINS,
+             'distance_from_left_guess_to_truth':
+             distance.euclidean(self.ys[0], EXACT_LQR_CART_POLE_GAINS),
+             'distance_from_right_guess_to_truth':
+             distance.euclidean(self.ys[1], EXACT_LQR_CART_POLE_GAINS),
+             'command': command_name(c, self.ground_truth_mode),
+             'dimensions': self.sim_constants.dimensions,
+             'sigma': np.sqrt(self.cov[0][0]),
+             'trial_count': self.trial_count,
+             'output_file_name': self.output_file_name}
+        pp.pprint(output_dict)
+        jsout = json.dumps(output_dict, indent=2)
+        with open(self.output_file_name, "a") as output_file_pointer:
+            print(jsout, file=output_file_pointer)
+            time.sleep(1)
 
 
 def test_hands():
