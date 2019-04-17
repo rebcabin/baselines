@@ -5,6 +5,9 @@ import timeit
 import pytest
 
 env = gym.make("TwoHandsManipulateBlocks-v0")  # manipulate.py
+env_type = type(env)
+# inspect this type in the debugger; it's a time-limit wrapper!
+
 # env = gym.make("HandManipulateBlock-v0")
 
 # [[[ bbeckman:
