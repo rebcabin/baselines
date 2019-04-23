@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 import timeit
 import pytest
 
-env = gym.make("TwoHandsManipulateBlocks-v0")  # manipulate.py
+# The code for this environment is TwoHandsBlockEnvBBeckman in manipulate.py.
+env = gym.make("TwoHandsManipulateBlocks-v0")
+
 env_type = type(env)
 # inspect this type in the debugger; it's a time-limit wrapper!
 
