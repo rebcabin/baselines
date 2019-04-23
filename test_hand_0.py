@@ -4,10 +4,48 @@ import matplotlib.pyplot as plt
 import timeit
 import pytest
 
+
+#  ___       __ _      _ _   _
+# |   \ ___ / _(_)_ _ (_) |_(_)___ _ _  ___
+# | |) / -_)  _| | ' \| |  _| / _ \ ' \(_-<
+# |___/\___|_| |_|_||_|_|\__|_\___/_||_/__/
+
+
+# LRM :: Linear Regulator Matrix, num-actions rows x num-states columns
+# LRV :: Linear Regulator Vector,
+# STATE :: POSITION concat VELOCITY
+# DOF : :: degrees of freedom
+# POSITION :: 3D position in the world coordinate frame
+# VELOCITY :: time derivative of position
+# ORIENTATION :: 4D normalized quaternion --- three degrees of freedom
+#              (a normalized quaternion is also called a "versor.")
+# ANGULAR_VELOCITY :: 3D vector measured in radians per second
+# POSE :: 7D, 6-DOF POSITION concat ORIENTATION
+# POSE_VELOCITY :: 6D, VELOCITY concat ANGULAR_VELOCITY
+
+
+#   ___              ___         _                            _
+#  / __|_  _ _ __   | __|_ ___ _(_)_ _ ___ _ _  _ __  ___ _ _| |_
+# | (_ | || | '  \  | _|| ' \ V / | '_/ _ \ ' \| '  \/ -_) ' \  _|
+#  \___|\_, |_|_|_| |___|_||_\_/|_|_| \___/_||_|_|_|_\___|_||_\__|
+#       |__/
+
+
 # The code for this environment is TwoHandsBlockEnvBBeckman in manipulate.py.
+# The registration code is at line 415 (or search for "bbeckman") in
+# gym/envs/__init__.py. The registration code maps the string
+# "TwoHandsManipulateBlocks-v0" to the class 'TwoHandsBlockEnvBBeckman.'
+
+
 env = gym.make("TwoHandsManipulateBlocks-v0")
 
+
 env_type = type(env)
+
+
+_ = env.reset()
+
+
 # inspect this type in the debugger; it's a time-limit wrapper!
 
 # env = gym.make("HandManipulateBlock-v0")
@@ -17,30 +55,24 @@ env_type = type(env)
 # <-- gym.envs.robotics.HandBlockEnv, which happens to be in manipulate.py.
 # The registration code is in envs/__init__.py, line 407.
 #
-# "TwoHandsManipulateBlocks-v0" started as a plumbed copy, registered to
-# <-- gym.envs.robotics:TwoHandsBlockEnvBBeckman, which happens to be in
-# manipulate.py. The registration code is in envs/__init__.py, line 415.
-# The registration code specifies some initial conditions that may have
-# to change (TODO).
+# "TwoHandsManipulateBlocks-v0" started as a plumbed copy, registered to <--
+# gym.envs.robotics:TwoHandsBlockEnvBBeckman, in manipulate.py. The
+# registration code is in envs/__init__.py, line 415. The registration code
+# specifies initial conditions that may have to change (TODO).
 #
 # Search this repository for "bbeckman" to see my changes all over the place.
 # ]]]
-
-# env = gym.make("HandManipulateBlock-v0")
-# env = gym.make("CartPole-v1")
-# env = gym.make("Zaxxon-v0")
-
-_ = env.reset()
-
-
-# Abbreviations:
-# LRM :: Linear Regulator Matrix, #actions rows x #states columns
-# LRV :: Linear Regulator Vector,
 
 
 # Many functions assign a value to a variable named "result" and then
 # immediately return "result." The convention makes it easy to inspect the
 # result in the debugger by setting a breakpoint on "return result."
+
+
+#  ___     _ _      _     _     _     ___ _        _
+# | __|  _| | |  _ | |___(_)_ _| |_  / __| |_ __ _| |_ ___
+# | _| || | | | | || / _ \ | ' \  _| \__ \  _/ _` |  _/ -_)
+# |_| \_,_|_|_|  \__/\___/_|_||_\__| |___/\__\__,_|\__\___|
 
 
 ONE_HAND_STATE_DIM = 48
@@ -67,17 +99,6 @@ def lrv_from_lrm(mat):
     return result
 
 
-def sample_d_ball_method_2(d=LRV_DIM, n=10):
-    """Direct implementation of the 'hat-box' method that just throws
-    away two coordinates, exploiting Archimedes' hat-box theorem of 400 BC or
-    thereabouts. This version doesn't use the 'nengo' library. It's a tiny bit
-    faster than method 4."""
-    temp0 = np.random.randn(n, d + 2)
-    temp1 = temp0 / np.linalg.norm(temp0, axis=1, keepdims=True)
-    result = temp1[:, 2:]
-    return result
-
-
 def new_zero_lrm():
     return np.zeros(LRM_SHAPE)
 
@@ -90,8 +111,84 @@ def new_normally_distributed_lrm(center, sigma):
     return result
 
 
+#  ___ _                   _   _        ___        _ _   _
+# | __(_)_ _  __ _ ___ _ _| |_(_)_ __  | _ \___ __(_) |_(_)___ _ _
+# | _|| | ' \/ _` / -_) '_|  _| | '_ \ |  _/ _ (_-< |  _| / _ \ ' \
+# |_| |_|_||_\__, \___|_|  \__|_| .__/ |_| \___/__/_|\__|_\___/_||_|
+#            |___/              |_|
+
+
+ONE_HAND_FINGERTIP_COUNT = 5
+POSITION_DIM = 3
+ONE_HAND_FINGERTIP_POSITION_DIM = ONE_HAND_FINGERTIP_COUNT * POSITION_DIM
+# including velocities:
+ONE_HAND_FINGERTIP_STATE_DIM = ONE_HAND_FINGERTIP_POSITION_DIM * 2
+
+# shorter names
+LRV_FINGERTIP_DIM = \
+    ONE_HAND_FINGERTIP_POSITION_DIM * ONE_HAND_ACTION_DIM
+
+LRM_FINGERTIP_SHAPE = (ONE_HAND_ACTION_DIM, ONE_HAND_FINGERTIP_POSITION_DIM)
+LRV_FINGERTIP_SHAPE = (LRV_FINGERTIP_DIM,)
+
+
+def lrm_fingertip_from_lrv_fingertip(vec):
+    assert vec.shape == LRV_FINGERTIP_SHAPE
+    result = np.reshape(vec, LRM_FINGERTIP_SHAPE)
+    return result
+
+
+def lrv_fingertip_from_lrm_fingertip(mat):
+    assert mat.shape == LRM_FINGERTIP_SHAPE
+    result = np.reshape(mat, LRV_FINGERTIP_SHAPE)
+    return result
+
+
+def new_zero_lrm_fingertip():
+    return np.zeros(LRM_FINGERTIP_SHAPE)
+
+
+def new_normally_distributed_lrm_fingertip(center, sigma):
+    assert center.shape == LRM_FINGERTIP_SHAPE
+    temp0 = np.random.randn(*LRM_FINGERTIP_SHAPE)
+    assert temp0.shape == LRM_FINGERTIP_SHAPE
+    result = sigma * temp0 + center
+    return result
+
+
+#  ___                  _ _
+# / __| __ _ _ __  _ __| (_)_ _  __ _
+# \__ \/ _` | '  \| '_ \ | | ' \/ _` |
+# |___/\__,_|_|_|_| .__/_|_|_||_\__, |
+#                 |_|           |___/
+
+
+def sample_d_ball_uniformly(d=LRV_DIM, n=10):
+    """Discard any two coordinates, exploiting Archimedes' hat-box
+    theorem. Found in separate experiments to be faster than "nengo"
+    and three orders of magnitude faster than multivariate Gaussian,
+    which requires a covariance matrix. """
+    temp0 = np.random.randn(n, d + 2)
+    temp1 = temp0 / np.linalg.norm(temp0, axis=1, keepdims=True)
+    result = temp1[:, 2:]
+    return result
+
+
+#  _  _                                                  _
+# | || |_  _ _ __  ___ _ _ _ __  __ _ _ _ __ _ _ __  ___| |_ ___ _ _ ___
+# | __ | || | '_ \/ -_) '_| '_ \/ _` | '_/ _` | '  \/ -_)  _/ -_) '_(_-<
+# |_||_|\_, | .__/\___|_| | .__/\__,_|_| \__,_|_|_|_\___|\__\___|_| /__/
+#       |__/|_|           |_|
+
+
 # TODO: violation code-review guideline 24: move to config file!
-LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 1.25
+
+# Modify the following factor so that the hands actually turn the
+# cube but don't drop it too often.
+
+LRM_EMPIRICAL_SCALE_FACTOR_HYPERPARAMETER = 1.250
+
+# TODO: Consider one scale factor per finger.
 LRM_SHRINKING_SIGMA = 1.0
 LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER = 0.9998
 LEFT = 0
@@ -99,15 +196,29 @@ RIGT = 1
 LRMS_LIFESPAN_IN_TIME_STEPS_HYPERPARAMETER = 10
 TRIAL_LIFESPAN_IN_TIME_STEPS = 250
 
-# [[[ bbeckman: Action is a piecewise linear transformation of the residual
-# between the desired configuration (called 'goal') of the cube and the actual
-# configuration (called 'achieved_goal'). The residual is a 7-vector: three
-# positions, three angles expressed as a 4D normalized quaternion. Ignore
-# velocities for now (TODO); they are an additional 6-vector. The action-dim
-# is 20. The linear transformation is, therefore, a 20 x 7 matrix. There is
-# one such matrix every so many time steps, where 'so many' is
+
+#  ___ _                   _           _    _
+# | _ (_)___ __ _____ __ _(_)___ ___  | |  (_)_ _  ___ __ _ _ _
+# |  _/ / -_) _/ -_) V  V / (_-</ -_) | |__| | ' \/ -_) _` | '_|
+# |_| |_\___\__\___|\_/\_/|_/__/\___| |____|_|_||_\___\__,_|_|
+#    _      _   _
+#   /_\  __| |_(_)___ _ _  ___
+#  / _ \/ _|  _| / _ \ ' \(_-<
+# /_/ \_\__|\__|_\___/_||_/__/
+
+
+
+# [[[ bbeckman: under the scheme of PLAs (piecewise-linear actions), action is
+# a piecewise linear transformation of the residual between the desired
+# configuration (called 'goal') of the cube and the actual configuration
+# (called 'achieved_goal'). The residual is a 7-vector: three positions, three
+# angles expressed as a 4D normalized quaternion. Ignore velocities for now
+# (TODO); they are an additional 6-vector. The action-dim is 20. The linear
+# transformation is, therefore, a 20 x 7 matrix. There is one such matrix every
+# so many time steps, where 'so many' is
 # LRMS_LIFESPAN_IN_TIME_STEPS_HYPERPARAMETER. The number of such matrices in
 # the lifetime of a trial is the following: ]]]
+
 
 LRMSS_LENGTH = TRIAL_LIFESPAN_IN_TIME_STEPS // \
                LRMS_LIFESPAN_IN_TIME_STEPS_HYPERPARAMETER
@@ -219,10 +330,10 @@ def test_hands():
             if done:
                 _ = env.reset()
         preference = collect_preference(state)
-        if preference == 'a' or preference == 'l':
+        if preference in ('a', 'l'):
             lrmss = evolved_lrmss(LEFT, lrmss, sigma)
             sigma *= LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER
-        elif preference == 'b' or preference == 'r':
+        elif preference in ('b', 'r'):
             lrmss = evolved_lrmss(RIGT, lrmss, sigma)
             sigma *= LRM_SIGMA_SHRINKING_FACTOR_HYPERPARAMETER
         elif preference == 'q':
