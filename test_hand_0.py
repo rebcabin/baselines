@@ -1,8 +1,12 @@
 import gym
 import numpy as np
+import datetime
 import matplotlib.pyplot as plt
 import timeit
 import pytest
+
+
+repeatable_runs = True
 
 
 #  ___       __ _      _ _   _
@@ -35,6 +39,7 @@ import pytest
 # The registration code is at line 415 (or search for "bbeckman") in
 # gym/envs/__init__.py. The registration code maps the string
 # "TwoHandsManipulateBlocks-v0" to the class 'TwoHandsBlockEnvBBeckman.'
+# The registration code also seeds the simulation for repeatability.
 
 
 env = gym.make("TwoHandsManipulateBlocks-v0")
@@ -43,7 +48,11 @@ env = gym.make("TwoHandsManipulateBlocks-v0")
 env_type = type(env)
 
 
-_ = env.reset()
+# The kwarg 'always_the_same' is not standard from OpenAI gym. But it's
+# harmless to omit it.
+
+
+_ = env.reset(always_the_same=repeatable_runs)
 
 
 # inspect this type in the debugger; it's a time-limit wrapper!
@@ -101,6 +110,13 @@ def lrv_from_lrm(mat):
 
 def new_zero_lrm():
     return np.zeros(LRM_SHAPE)
+
+
+# TODO: don't hardcode this seed, read from a config file.
+# TODO: double check that this seed is independent from seeding.py
+# (a visual spot check confirms that runs are now repeatable)
+if repeatable_runs:
+    np.random.seed(42 ** 5)
 
 
 def new_normally_distributed_lrm(center, sigma):
@@ -207,7 +223,6 @@ TRIAL_LIFESPAN_IN_TIME_STEPS = 250
 # /_/ \_\__|\__|_\___/_||_/__/
 
 
-
 # [[[ bbeckman: under the scheme of PLAs (piecewise-linear actions), action is
 # a piecewise linear transformation of the residual between the desired
 # configuration (called 'goal') of the cube and the actual configuration
@@ -281,7 +296,7 @@ def collect_preference(state):
 
 class GameState(object):
     """TODO: UNDONE"""
-    def run_hands():
+    def run_hands(self):
         pass
 
     def record_output(self, c):
@@ -340,5 +355,7 @@ def test_hands():
             break
         else:
             print('preference must be a, l, b, r, q, n')
+
+        _ = env.reset(always_the_same=True)
 
     env.close()
